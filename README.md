@@ -1,400 +1,323 @@
 # md_interactions
 
-Análisis reproducible de interacciones y **geometría de reacción** en trayectorias de
-dinámica molecular (`prmtop` de AMBER + `.nc`/`.dcd`), pensado para sistemas
-enzima–sustrato: distancias catalíticas, ángulos de ataque, puentes de hidrógeno,
-RMSD/RMSF, mapas 2D de energía libre aparente, Rg, RDF y clustering conformacional.
+Reproducible analysis of interactions and **reaction geometry** in molecular
+dynamics trajectories (AMBER `prmtop` + `.nc`/`.dcd`), aimed at enzyme–substrate
+systems: catalytic distances, attack angles, hydrogen bonds, RMSD/RMSF, apparent
+free-energy maps, radius of gyration, solvation shells and conformational
+clustering.
 
-Apuntas la herramienta a un par (topología, trayectoria) + un YAML con las
-selecciones que te interesan y obtienes una carpeta `results/` con figuras
-listas para publicación (PNG + PDF/SVG), CSVs con todos los datos y un informe
-único en Markdown/HTML.
+Point it at a topology, a trajectory and a short input file describing what you
+care about, and you get a `results/` folder with publication-ready figures
+(PNG + PDF/SVG), CSV tables with every number behind them, and a single report.
 
 ```
 results/
-├── plots/        dist_d_nuc_timeseries.png/.pdf, fes_dnuc_dacid.png, rmsf_per_residue.png ...
-├── data/         distances.csv, angles.csv, rmsd.csv, hbonds_tracked.csv, observables.csv ...
-├── summary/      summary.csv, summary.md, clusters.csv
-├── structures/   cluster1_frame1834.pdb  (representantes de cada clúster)
+├── plots/        dist_d_nuc_timeseries.png/.pdf, rdf_w_od1.png, rmsf_per_residue.png ...
+├── data/         distances.csv, angles.csv, rmsd.csv, rdf_w_od1.csv, observables.csv ...
+├── summary/      summary.csv, summary.md, replica_overlap.csv
+├── structures/   cluster1_frame1834.pdb   (representative of each cluster)
 ├── report.md
 └── report.html
 ```
 
 ---
 
-## Instalación
+## Installation
 
 ```bash
 pip install -e .
 ```
 
-Requiere Python ≥ 3.10 y depende de MDAnalysis, numpy, pandas, matplotlib, scipy y
-PyYAML. Extras opcionales:
-
-```bash
-pip install -e ".[netcdf]"   # netCDF4 (opcional)
-pip install -e ".[dev]"      # pytest
-```
-
-Los `.nc` de AMBER se leen con `scipy.io.netcdf` (viene con scipy), así que **no**
-necesitas `netCDF4` para analizar; solo acelera la *escritura* de netCDF, que aquí
-no se usa.
-
-> El clustering usa `scipy` (jerárquico y k-means), así que **no** hace falta
-> scikit-learn.
+Python ≥ 3.10, and MDAnalysis, numpy, pandas, matplotlib, scipy and PyYAML.
+AMBER `.nc` files are read through `scipy.io.netcdf`, so `netCDF4` is **not**
+required. Clustering uses `scipy`, so scikit-learn is not required either.
 
 ---
 
-## Interfaz gráfica: `md-analyzer gui`
+## The input file
 
-Un único comando, una ventana, sin YAML:
+The quickest way in. A flat text file: no indentation rules, no quoting.
 
-```bash
-md-analyzer gui --top system.prmtop --traj prod.nc
+```
+topology    system.prmtop
+trajectory  prod.nc
+time        0.1 ps
+stride      1
+output      results
+
+[distances]
+d_nuc    ASP20:OD1    TRH453:C1    threshold=3.5
+d_wat    TRH453:O2P   water        mode=min
+
+[angles]
+a_attack ASP20:OD1    TRH453:C1    TRH453:O1
+
+[rdf]
+w_od1    ASP20:OD1    water   rmax=10
 ```
 
-Se abre el navegador con la estructura en 3D. **Pinchas los átomos** que quieres
-medir (2 → distancia, 3 → ángulo, 4 → diedro), le das a analizar y las figuras
-aparecen en la misma ventana. Incluye un botón de detección automática que
-propone las interacciones que ya existen en la trayectoria, y otro que busca
-cambios químicos (enlaces rotos/formados, protones migrados).
-
-En un cluster, con reenvío de puerto:
-
 ```bash
-ssh -L 8765:localhost:8765 usuario@cluster
-md-analyzer gui --top system.prmtop --traj prod.nc --no-browser
+md-analyzer run -c analysis.in
 ```
 
-El visor 3D (3Dmol.js) va **empaquetado**, así que funciona sin internet. El
-servidor es de la biblioteca estándar: no añade dependencias.
+`run` validates the whole configuration against the topology **before reading a
+single frame**: every selection is resolved, and each 2D map is checked against
+the observables the run will actually produce. A typo costs a second instead of
+a full trajectory pass, and nothing is written when the check fails:
 
-## Detección automática: `md-analyzer explore`
+```
+3 problem(s) found:
 
-Invierte el problema: en vez de decirle tú qué medir, te dice qué hay.
+  [FAIL] distance:d_typo -> "resname ARG and resid 414 and name HH99"
+         Matched 0 atoms.
+  [FAIL] free_energy_maps:map1.y -> "d_typoo"
+         'd_typoo' is not produced by any analysis; did you mean 'd_typo'?
+
+Nothing was run. Fix the configuration, or use --no-check to run anyway.
+```
+
+`md-analyzer check -c analysis.in` runs the same validation on its own and
+prints the full list of resolved selections with their atom counts.
+
+### Writing atoms
+
+Use whichever notation you have at hand — they all become MDAnalysis selections:
+
+| You write | It means |
+| --- | --- |
+| `ASP20:OD1` | residue name + number, atom name (the residue name is **checked**) |
+| `20:OD1` | residue number and atom name |
+| `TRH:O2P` | by residue name — any residue so called |
+| `:20@OD1` | cpptraj mask |
+| `@1123` | atom number, 1-based as in cpptraj/VMD |
+| `ASP20:OD1,OD2` | several atoms of the same residue |
+| `TRH:*` | every atom of the residue |
+| `:20-30` | a range of residues |
+| `water` | water oxygens (also `protein`, `backbone`, `heavy`, `ligand`) |
+| `{resid 20 and name OD1}` | a literal MDAnalysis selection |
+
+Names declared in `[selections]` can be used everywhere afterwards:
+
+```
+[selections]
+NUC   ASP20:OD1
+SITE  {byres (protein and around 6 resname TRH)}
+```
+
+### Sections
+
+| Section | Line format |
+| --- | --- |
+| `[distances]` | `name  atomA  atomB  [threshold=…] [mode=atom\|com\|min]` |
+| `[angles]` | `name  atomA  atomB  atomC` |
+| `[dihedrals]` | `name  atomA  atomB  atomC  atomD` |
+| `[hbonds]` | `name donor=… acceptor=…`, plus `auto  regionA  regionB` |
+| `[rmsd]` | `name  selection  [fit=selection]` — **on by default** |
+| `[rmsf]` | `selection …`, `highlight 20 414` — **on by default** |
+| `[rdf]` | `name  centre  partner  [rmax=…] [bins=…] [by=residue]` |
+| `[rgyr]` | `name  selection` |
+| `[clustering]` | `selection …`, `n 3` |
+| `[fes]` | `name x=obs1 y=obs2 [bins=…]` |
+
+**RMSD and RMSF run by default** (backbone RMSD, per-residue RMSF on the Cα).
+Declaring the section customises them; `rmsd off` / `rmsf off` disables them.
+Everything else runs only when its section is present.
+
+Global keys: `topology`, `trajectory`, `replica <name> <file>`, `time <dt> <unit>`,
+`stride`, `frames <start> <stop>`, `output`, `formats`, `dpi`, `align`, `report`.
+
+YAML is still fully supported (`md-analyzer init -o config.yaml`) and is what the
+package uses internally; the input file is translated into exactly the same
+`Config` object, so both go through the same validation.
+
+---
+
+## Solvation and RDF
+
+Written around the question that actually comes up: *how is this atom or this
+residue hydrated?* Every RDF reports `g(r)`, the running coordination number
+`n(r)`, the **first solvation shell** (first peak, closing minimum and how many
+molecules fit inside it) and the **hydration number over time**.
+
+```
+[rdf]
+w_od1     ASP20:OD1   water   rmax=10 bins=100
+w_res20   {resid 20}  water   rmax=12 by=residue
+```
+
+`by=residue` (also `proximal`) measures each water to the **nearest atom** of the
+group, which is what "water around a residue" means for a non-spherical solute.
+That profile is reported as a distribution (molecules/Å) rather than as a `g(r)`:
+the accessible volume around an irregular solute is not `4πr²dr`, and dividing by
+it anyway would produce a curve that cannot be compared with bulk density.
+`by=com` uses the centre of mass instead — useful only for compact groups, since
+from inside a buried residue `g(r)` never reaches bulk.
+
+On a solvent-exposed aspartate this gives 2.6 waters within 3.25 Å of OD1, and
+5.1 waters in the first shell of the whole residue.
+
+---
+
+## Automatic detection
+
+Rather than naming residues up front, ask what is there:
 
 ```bash
 md-analyzer explore contacts --top x.prmtop --traj y.nc --around "resname LIG"
 md-analyzer explore changes  --top x.prmtop --traj y.nc
 ```
 
-`contacts` lista los contactos polares, puentes salinos y de hidrógeno de una
-región con su ocupación, ordenados. `changes` detecta enlaces covalentes que se
-rompen o se forman y protones que cambian de átomo — es decir, te avisa de que
-la trayectoria es reactiva y de que **la topología describe solo la estructura
-inicial**, con lo que una selección por nombre de átomo puede no estar midiendo
-lo que su nombre sugiere. Con `--export config.yaml` lo detectado se convierte
-en una configuración lista para `run`.
+`contacts` ranks every polar contact, salt bridge and hydrogen bond of a region
+by occupancy. `changes` detects covalent bonds that break or form and protons
+that hop between atoms — that is, it tells you the trajectory is **reactive** and
+that the topology only describes the starting structure, so a selection by atom
+name may not be measuring what its name suggests. `--export config.yaml` turns
+what it found into a runnable configuration.
 
-## Uso desde la línea de comandos
+---
+
+## Replicas
+
+Listing several files under `trajectory` concatenates them into one series.
+Independent runs should be declared as replicas instead:
+
+```
+replica rep1  rep1/prod.nc
+replica rep2  rep2/prod.nc
+replica rep3  rep3/prod.nc
+```
+
+Every frame then keeps its origin (a `replica` column in all CSVs), each
+distribution gets one dashed curve per replica over the pooled histogram, and
+`summary/replica_overlap.csv` reports the **overlap coefficient** of every pair
+(1 = identical distributions, 0 = disjoint). Pairs below 0.70 are flagged in the
+report, and bit-identical replicas are called out as duplicated input rather than
+as perfect convergence.
+
+No p-values are reported on purpose: consecutive MD frames are correlated, so a
+Kolmogorov–Smirnov test assumes an effective sample size a trajectory does not
+have and ends up calling almost everything significant.
+
+---
+
+## Pre-computed tables
+
+For data measured elsewhere (`cpptraj` output, Monte Carlo runs, old results),
+with no topology or trajectory needed:
 
 ```bash
-md-analyzer wizard --top system.prmtop --traj prod.nc   # asistente interactivo
-md-analyzer check  -c config.yaml    # valida el YAML y TODAS las selecciones
-md-analyzer run    -c config.yaml    # ejecuta los análisis activados
+md-analyzer init --data -o config_data.yaml
 ```
 
-### Asistente: `md-analyzer wizard`
+Reads the `#Frame` format of cpptraj (and CSV, and headerless files), validates
+that every replica has the same columns in the same order, and produces the same
+distributions, summary, 2D maps and replica comparison.
 
-La forma recomendada de crear la configuración sin escribir YAML a mano. Lee la
-topología, te deja explorarla y valida cada selección **en el momento**:
+---
 
-```
-  Átomo/grupo A: ?ARG
-  ARG: 26 residuo(s) -> resid [26, 29, 33, ..., 414]
-    átomos del primero: N, H, CA, HA, CB, ..., NH1, HH11, HH12, NH2, HH21, HH22
-  Átomo/grupo A: 20@OD1
-  [ok] ASP20:OD1 (1 átomo)
-  Átomo/grupo B: ARG20@HH12
-  [!] El residuo 20 es ASP, no ARG. Usa '?ARG' para listar los ARG de la topología.
-  Átomo/grupo B: 414@HH12
-  [ok] ARG414:HH12 (1 átomo)
+## Other entry points
+
+```bash
+md-analyzer wizard --top system.prmtop --traj prod.nc   # interactive builder
+md-analyzer gui    --top system.prmtop --traj prod.nc   # 3D structure, click atoms
 ```
 
-Sintaxis de selección admitida:
+The wizard asks question by question, validating each selection against the real
+topology (`?20`, `?ARG`, `?ligands` explore it without leaving the prompt). The
+GUI opens a browser with the structure in 3D: click 2 atoms for a distance, 3 for
+an angle, 4 for a dihedral. The 3D viewer is vendored, so it works with no
+internet access; over SSH use `-L 8765:localhost:8765` and `--no-browser`.
 
-| Escribes | Significa |
+---
+
+## Available analyses
+
+| Module | Produces |
 | --- | --- |
-| `20@OD1` | resid 20, átomo OD1 |
-| `ASP20@OD1` | igual, comprobando que el residuo 20 es un ASP |
-| `TRH@O2P` | por nombre de residuo (ligando, cofactor...) |
-| `20@OD1,OD2` | varios átomos del mismo residuo |
-| `resid 20 and name OD1` | selección MDAnalysis literal, por si la necesitas |
+| `distances` | Time series + histogram per distance, a multi-panel figure with all of them, mean ± sd, min/max, % below a threshold |
+| `angles_dihedrals` | Angles in [0,180]° and dihedrals in (−180,180]°, with **circular** statistics for dihedrals |
+| `rmsd_rmsf` | Global and local RMSD (fit on one selection, measure another) + per-residue RMSF |
+| `hbonds` | D–A distance, D–H···A angle and occupancy of named bonds, plus automatic detection in a region |
+| `rdf` | g(r), n(r), first solvation shell and hydration number over time |
+| `free_energy_map` | 2D histogram or KDE of two observables, optionally as −kT ln P |
+| `radius_of_gyration` | Rg of one or more selections |
+| `clustering` | Hierarchical or k-means clustering, populations, PCA projection and a **PDB of the representative frame** |
+| `replicas` | Distribution overlap between replicas and convergence warnings |
+| `report` | Summary table (CSV/Markdown) and a single Markdown + HTML report |
 
-Y consultas para explorar la topología sin salir del asistente: `?20` (muestra el
-residuo y sus átomos), `?ARG` (lista todos los ARG), `?ligandos` (residuos no
-proteicos ni disolvente), `?` (ayuda).
+### Details that affect interpretation
 
-El menú principal lista **todos** los análisis disponibles con una descripción de
-una línea, así que no hace falta leer la plantilla entera para saber qué existe.
-Al terminar escribe un `config.yaml` normal —editable y versionable— con los
-alias generados a partir de lo que realmente casó (`ASP20_OD1`, no `20_OD1`).
-
-Plantillas en crudo, si prefieres partir de un fichero:
-
-```bash
-md-analyzer init  -o config.yaml     # plantilla comentada (trayectoria)
-md-analyzer init --data -o config_data.yaml   # plantilla para tablas .dat
-```
-
-
-`check` es el paso que ahorra tiempo: carga el sistema, resuelve cada selección e
-imprime cuántos átomos encuentra cada una, sin recorrer la trayectoria.
-
-```
-Selections:
-  [ok]   distance:d_nuc               SER160_OG              ->      1 atoms
-  [ok]   distance:d_nuc               LIG_C                  ->      1 atoms
-  [FAIL] distance:d_acid              HIS237_NE2             -> "resid 237 and name NE2"
-         Selection 'distance:d_acid:HIS237_NE2' -> "resid 237 and name NE2" matched 0 atoms.
-```
-
-Cualquier opción del YAML se puede sobrescribir desde la CLI, útil para lanzar la
-misma configuración sobre varias réplicas:
-
-```bash
-md-analyzer run -c config.yaml --traj rep1/prod.nc rep2/prod.nc --out results_rep12 --stride 10
-```
-
-Opciones: `--top`, `--traj` (varios archivos), `--out`, `--stride`, `--start`,
-`--stop`, `--formats png pdf svg`, `--strict` (aborta al primer fallo en vez de
-continuar con el resto de análisis), `-q`.
+- **Local RMSD**: `fit=` says what to superpose on, the selection says what to
+  measure. For a ligand or an active site, fit on `backbone`.
+- **RMSF**: every frame is superposed on the average structure (two-pass
+  iterative fit) before computing fluctuations; the per-residue value is the
+  mass-weighted RMS of its atoms. Only the coordinates of the selection are held
+  in memory.
+- **Hydrogen bonds**: when the acceptor spans several atoms (a carboxylate, say)
+  the closest one is used at each frame, and of the donor's hydrogens the one
+  giving the most linear arrangement. Occupancy is the percentage of frames
+  satisfying both criteria (default d ≤ 3.5 Å and ∠ ≥ 150°).
+- **2D maps**: −kT ln P referred to the most populated bin. For unbiased MD this
+  is a population map, **not** a converged free-energy surface; unsampled bins
+  are left blank. Reweight metadynamics or umbrella data before feeding it here.
+  The number of bins is capped automatically (√(n/2) rule) when there are few
+  frames, and `smooth: <sigma>` applies Gaussian smoothing.
+- **Clustering**: pairwise RMSD is computed after superposing on the average
+  structure; above `max_frames` (2000) the trajectory is subsampled, since the
+  cost is O(N²). The representative is the **medoid**, written as a PDB of the
+  whole system — directly usable as a QM/MM starting point. `write_selection`
+  trims it to a region.
+- **Histograms**: probability density (Å⁻¹) by default. It is the only
+  normalisation comparable between panels with different ranges, and the reason
+  the ordinate exceeds 1 Å⁻¹ for narrow distributions (whenever σ < 0.40 Å).
+- **PBC**: minimum-image convention is applied whenever the trajectory carries a
+  valid box.
 
 ---
 
-## Uso como librería (notebooks)
-
-```python
-import md_interactions as mdi
-
-config = mdi.load_config("config.yaml")
-out = mdi.run_analyses(config)
-
-out.summary                                  # DataFrame: media ± sd, min, max
-out.observables                              # todas las series temporales juntas
-out.result("distances").tables["distances"]  # DataFrame frame/time/d_nuc/d_acid
-out.result("hbonds").plots                   # rutas de las figuras
-```
-
-Y módulo a módulo, sin escribir nada en disco:
-
-```python
-from md_interactions.analyses import distances, rmsd_rmsf
-
-system = mdi.load_system(config)             # topología + trayectoria + stride
-df = distances.compute_distances(system)     # DataFrame listo para pandas/seaborn
-per_atom, per_residue = rmsd_rmsf.compute_rmsf(system)
-```
-
-Para probar sin datos propios:
-
-```bash
-python examples/toy_demo.py     # sistema de juguete + todos los análisis
-```
-
----
-
-## El archivo de configuración
-
-Plantilla completa y comentada en [`examples/config_example.yaml`](examples/config_example.yaml)
-(o `md-analyzer init`). Estructura resumida:
-
-```yaml
-system:
-  topology: system.prmtop
-  trajectory: [prod_01.nc, prod_02.nc]     # se concatenan (réplicas o tramos)
-  time:   {dt: 0.01, unit: ns}             # dt entre frames GUARDADOS; null -> del .nc
-  frames: {start: 0, stop: null, stride: 1}
-  align:  {enabled: false, selection: "protein and name CA"}
-
-output:
-  directory: results
-  formats: [png, pdf]                      # pdf/svg = vectorial para publicación
-  dpi: 300
-
-selections:                                # alias reutilizables (sintaxis MDAnalysis)
-  SER160_OG:  "resid 160 and name OG"
-  LIG_C:      "resname LIG and name C1"
-  ACTIVE_SITE: "byres (protein and around 6 resname LIG)"
-
-analyses:
-  distances:
-    pairs:
-      - {name: d_nuc, atoms: [SER160_OG, LIG_C], threshold: 3.5}
-      - {name: d_wat, atoms: [LIG_C, WATERS], mode: min}
-  angles:
-    definitions:
-      - {name: a_attack, atoms: [SER160_OG, LIG_C, LIG_O]}
-  ...
-report:
-  formats: [markdown, html]
-```
-
-Notas de diseño que conviene conocer:
-
-- **Alias o selección literal**: donde se espera una selección puedes poner el nombre
-  definido en `selections:` o directamente la cadena MDAnalysis
-  (`"resid 160 and name OG"`). Los alias se usan también en las etiquetas de las figuras.
-- **`mode`** en distancias/ángulos: `atom` (por defecto, la selección debe dar
-  exactamente 1 átomo), `com` (centro de masas del grupo) o `min` (distancia mínima
-  entre los dos grupos: el agua/oxígeno más cercano de todos).
-- **`threshold`** en una distancia añade al resumen el % de frames por debajo del
-  umbral (población de conformaciones near-attack) y lo dibuja en la serie temporal.
-- **Claves desconocidas dan error** en vez de ignorarse en silencio: una errata en
-  el YAML se detecta antes de leer un solo frame.
-- **Nombres únicos**: cada observable (`d_nuc`, `a_attack`, …) es una columna del CSV
-  global y el identificador que usan los mapas 2D como eje.
-
----
-
-## Réplicas: no las mezcles a ciegas
-
-Si listas varias trayectorias en `trajectory:` se concatenan como una sola serie.
-Cuando son **réplicas independientes**, decláralas como tales:
-
-```yaml
-system:
-  topology: system.prmtop
-  replicas:
-    rep1: [rep1/prod.nc]
-    rep2: [rep2/prod.nc]
-    rep3: [rep3/prod.nc]
-```
-
-Con eso, cada frame conserva de qué réplica viene (columna `replica` en todos los
-CSV), las distribuciones llevan una curva discontinua por réplica sobre el
-histograma agregado, y se genera `summary/replica_overlap.csv` + un mapa de calor
-con el **coeficiente de solapamiento** de cada par (1 = distribuciones idénticas,
-0 = disjuntas). Si algún par baja de 0.70 el informe lo avisa explícitamente.
-
-> No se dan p-valores a propósito: los frames consecutivos están correlacionados,
-> así que un test tipo Kolmogórov–Smirnov asume un tamaño muestral efectivo que
-> una trayectoria no tiene y acaba declarando "significativo" casi todo.
-
-Esto es justo lo que destapa el caso típico: una población que aparece en el
-histograma conjunto pero que en realidad solo visita una de las réplicas.
-
-## Datos ya calculados (`data:`) — sin topología ni trayectoria
-
-Para analizar salidas de `cpptraj` (o de cualquier código que escriba una fila por
-frame), incluidas simulaciones que no son MD de AMBER:
-
-```yaml
-data:
-  replicas:
-    rep1: [dist_rep1.dat]
-    rep2: [dist_rep2.dat]
-    rep3: [dist_rep3.dat]
-  unit: "Å"
-  time: {dt: 0.1, unit: ps}     # null -> el eje x son frames
-  labels: {"D20:OD1-R32:HH12": d_saltbridge}   # renombrado opcional
-  thresholds: {d_saltbridge: 2.5}              # % de frames por debajo
-  normalization: density
-```
-
-Formato esperado (el de `cpptraj distance`):
-
-```
-#Frame     D20:OD1-R32:HH12   D20:OD2-R32:HH22
-       1             2.5962             2.3542
-```
-
-Se valida que **todas las réplicas tengan las mismas columnas en el mismo orden**
-(si no, aborta en vez de mezclar observables en silencio). Produce las mismas
-distribuciones, tabla resumen, mapas 2D, comparación entre réplicas e informe que
-el modo trayectoria. Desde notebook:
-
-```python
-import md_interactions as mdi
-dataset = mdi.load_dataset(mdi.load_config("config_data.yaml"))
-dataset.data          # DataFrame frame/time/replica/columnas
-```
-
-## Análisis disponibles
-
-| Módulo | Qué produce |
-| --- | --- |
-| `distances` | Serie temporal + histograma/KDE por distancia, **rejilla multipanel** con todas las distribuciones; media ± sd, min/max, % bajo umbral |
-| `distributions` | Lo mismo sobre tablas ya calculadas (`data:`), sin trayectoria |
-| `replicas` | Solapamiento de distribuciones entre réplicas, tablas de convergencia y aviso de divergencia |
-| `angles_dihedrals` | Ángulos [0,180]° y diedros (−180,180]°; estadística **circular** para diedros |
-| `rmsd_rmsf` | RMSD global y local (ajuste sobre una selección, medida sobre otra) + RMSF por residuo |
-| `hbonds` | Distancia D–A, ángulo D–H···A y ocupación (%) de puentes concretos + detección automática en una región |
-| `free_energy_map` | Histograma 2D o KDE de dos observables; opción `−kT ln P` con barra de color en kcal/mol, kJ/mol o kT |
-| `radius_of_gyration` | Rg de una o varias selecciones |
-| `rdf` | g(r) entre dos selecciones + número de coordinación acumulado n(r) |
-| `clustering` | Clustering jerárquico o k-means sobre RMSD del sitio activo; poblaciones, proyección PCA y **PDB del frame representativo** de cada clúster |
-| `report` | Tabla resumen (CSV/Markdown) e informe único Markdown + HTML con todas las figuras |
-
-Cada análisis se activa/desactiva con su `enabled:` (y se desactiva solo si no
-declaras entradas). Un fallo en un módulo —típicamente una selección vacía— se
-reporta y **no impide** que el resto se ejecute; con `--strict` se aborta.
-
-### Detalles que afectan a la interpretación
-
-- **RMSD local**: `superposition:` define sobre qué se hace el ajuste y `selection:`
-  qué se mide. Lo habitual para un ligando o el sitio activo es ajustar sobre
-  `backbone` y medir sobre `resname LIG`.
-- **RMSF**: cada frame se superpone sobre la estructura promedio (ajuste iterativo de
-  2 pasadas) antes de calcular las fluctuaciones; el valor por residuo es la media
-  cuadrática ponderada por masa de sus átomos. Solo se cargan en memoria las
-  coordenadas de la selección implicada.
-- **Puentes de hidrógeno**: si el aceptor abarca varios átomos (p. ej. los dos
-  oxígenos de un carboxilato) se toma el más cercano en cada frame, y de los
-  hidrógenos del donor el que da el ángulo más lineal. La ocupación es el % de frames
-  que cumplen ambos criterios (por defecto d ≤ 3.5 Å y ∠ ≥ 150°).
-- **Mapas 2D**: `−kT ln P` referido al bin más poblado. En MD clásica sin sesgo esto
-  es un mapa de poblaciones, **no** una superficie de energía libre convergida; los
-  bins no muestreados se dejan en blanco. Si vienes de metadinámica/umbrella sampling,
-  reponderar antes. El número de bins se recorta automáticamente (regla √(n/2)) si hay
-  pocos frames para la rejilla pedida —se avisa por pantalla y en el informe—, y
-  `smooth: <sigma en bins>` aplica suavizado gaussiano al histograma.
-- **Clustering**: la matriz de RMSD por pares se calcula tras superponer todos los
-  frames sobre la estructura promedio (RMSD = |xᵢ − xⱼ|/√N). Por encima de
-  `max_frames` (2000 por defecto) se submuestrea, porque el coste es O(N²). El
-  representante de cada clúster es el **medoide**, que se escribe como PDB del
-  sistema completo (aguas y caja incluidas) — directamente usable como punto de
-  partida QM/MM. Con `write_selection:` se recorta a una región (p. ej.
-  `"byres (around 6 resname LIG)"`) si solo quieres inspeccionarlo en un visor.
-- **PBC**: en distancias y ángulos se aplica convención de imagen mínima si la
-  trayectoria trae caja válida (`pbc: false` para desactivarlo).
-- **Histogramas**: por defecto en **densidad de probabilidad** (Å⁻¹). Es la única
-  normalización comparable entre paneles cuando cada uno tiene su propio rango:
-  con 30 bins fijos, un panel de 0.8 Å de rango usa bins de 0.026 Å y otro de 12 Å
-  los usa de 0.4 Å, así que un "20 % por bin" significa cosas distintas en cada
-  uno. La densidad integra a 1 y por eso el pico **puede superar 1 Å⁻¹** (lo hace
-  siempre que σ < 0.40 Å). Alternativas: `normalization: percent | counts`.
-- **Rejilla multipanel** (`facet: true`, por defecto): una sola figura con un panel
-  por observable, con el número de columnas elegido automáticamente para que quepa
-  en una página (≤ 9 in de alto), en vez de una figura por distancia.
-
----
-
-## Estructura del paquete
+## Package layout
 
 ```
 src/md_interactions/
-├── config.py        dataclasses + carga/validación del YAML
-├── system.py        Universe, stride, eje temporal, selecciones, réplicas
-├── tabular.py       lectura de tablas ya calculadas (cpptraj .dat, CSV)
-├── plotting.py      estilo común, paleta (Okabe–Ito), guardado multi-formato
-├── io_utils.py      árbol results/, CSV, tablas Markdown
-├── results.py       AnalysisResult (tablas, series, resumen, figuras)
-├── runner.py        orquestador
-├── report.py        resumen + informe Markdown/HTML
-├── cli.py           wizard / run / check / init
-├── wizard.py        asistente interactivo, resolución de selecciones
-├── testing.py       sistema de juguete sintético
+├── config.py        typed configuration + YAML loading and validation
+├── inputfile.py     the compact input format and its atom specifications
+├── system.py        Universe, stride, time axis, selections, replicas
+├── tabular.py       reading pre-computed tables (cpptraj .dat, CSV)
+├── explore.py       automatic detection of contacts and chemical changes
+├── plotting.py      shared style, palette, multi-format saving
+├── io_utils.py      results/ tree, CSV, Markdown tables
+├── results.py       AnalysisResult (tables, series, summary, figures)
+├── runner.py        orchestration
+├── report.py        summary + Markdown/HTML report
+├── cli.py           run / check / explore / wizard / gui / init
+├── wizard.py        interactive builder
+├── gui/             local web interface with a 3D viewer
+├── testing.py       synthetic toy system
 └── analyses/        distances, angles_dihedrals, rmsd_rmsf, hbonds,
                      free_energy_map, radius_of_gyration, rdf, clustering,
-                     distributions (modo data:), replicas (convergencia)
+                     distributions, replicas
 ```
 
-Todos los módulos de `analyses/` siguen el mismo contrato:
+Every module in `analyses/` follows the same contract:
 
 ```python
-run(system, paths, config=None, verbose=True) -> AnalysisResult   # escribe CSV + figuras
-compute_*(system, config=None) -> pandas.DataFrame                # solo cálculo
+run(system, paths, config=None, verbose=True) -> AnalysisResult   # writes CSV + figures
+compute_*(system, config=None) -> pandas.DataFrame                # numbers only
+```
+
+---
+
+## Library use
+
+```python
+import md_interactions as mdi
+
+config = mdi.load_input("analysis.in")        # or mdi.load_config("config.yaml")
+out = mdi.run_analyses(config)
+
+out.summary                                   # mean ± sd, min, max
+out.observables                               # every time series in one frame
+out.result("distances").tables["distances"]
 ```
 
 ---
@@ -405,20 +328,20 @@ compute_*(system, config=None) -> pandas.DataFrame                # solo cálcul
 pytest
 ```
 
-60 tests sobre un sistema sintético de 42 átomos generado al vuelo
-(`md_interactions.testing`): no hacen falta trayectorias de prueba en el repo. Cubren
-validación de configuración, manejo de frames/stride/alineamiento, comprobación
-numérica de distancias/ángulos/RMSD/Rg contra cálculos directos con numpy, ocupación
-de puentes de hidrógeno, escalado del mapa de energía libre con la temperatura,
-clustering (poblaciones + medoides) y el flujo completo CLI → informe.
+121 tests on a synthetic 42-atom system generated on the fly
+(`md_interactions.testing`), so no trajectories are needed in the repository.
+They cover configuration and input-file parsing, frame handling, numerical
+checks of distances/angles/RMSD/Rg against direct numpy calculations, hydrogen
+bond occupancies, free-energy scaling with temperature, RDF shells, clustering,
+replica comparison and the full CLI → report path.
 
 ---
 
-## Convenciones de unidades
+## Units
 
-| Magnitud | Unidad |
+| Quantity | Unit |
 | --- | --- |
-| Distancias, RMSD, RMSF, Rg, r de g(r) | Å |
-| Ángulos y diedros | ° |
-| Tiempo | ns por defecto (`ps` o `frame` configurables) |
-| Energía libre | kcal/mol (o kJ/mol, kT) |
+| Distances, RMSD, RMSF, Rg, r of g(r) | Å |
+| Angles and dihedrals | ° |
+| Time | ns by default (`ps` or `frame` configurable) |
+| Free energy | kcal/mol (or kJ/mol, kT) |

@@ -39,6 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(run)
     run.add_argument("--strict", action="store_true",
                      help="abort on the first failing analysis")
+    run.add_argument("--no-check", action="store_true",
+                     help="skip the pre-flight validation of the selections")
     run.add_argument("-q", "--quiet", action="store_true", help="reduce output")
     run.set_defaults(func=_cmd_run)
 
@@ -130,6 +132,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 
 
 def _load(args: argparse.Namespace) -> Config:
+    """Load the configuration, accepting both the ``.in`` and YAML formats."""
     overrides = {
         "topology": args.top,
         "trajectory": args.traj,
@@ -140,22 +143,69 @@ def _load(args: argparse.Namespace) -> Config:
         "formats": args.formats,
     }
     overrides = {k: v for k, v in overrides.items() if v is not None}
+
+    if Path(args.config).suffix.lower() in {".in", ".inp", ".txt"}:
+        from .inputfile import load_input
+
+        if overrides:
+            print("[md_interactions] note: command-line overrides are only "
+                  "applied to YAML configurations; edit the input file instead.")
+        return load_input(args.config)
     return load_config(args.config, overrides=overrides or None)
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
     from .runner import run_analyses
+    from .validation import validate
 
     config = _load(args)
     verbose = not args.quiet
     if verbose:
         print(f"[md_interactions] config: {config.source}")
         print(f"[md_interactions] analyses: {', '.join(config.enabled_analyses()) or 'none'}")
-    output = run_analyses(config, verbose=verbose, strict=args.strict)
+
+    # Pre-flight: resolve every selection before reading a single frame, so a
+    # typo costs a second instead of a whole trajectory pass.
+    system = dataset = None
+    if not args.no_check:
+        if config.data_only:
+            from .tabular import load_dataset
+            dataset = load_dataset(config, verbose=verbose)
+        else:
+            system = load_system(config, verbose=verbose)
+        report = validate(config, system=system, dataset=dataset)
+        if not report.ok:
+            _print_issues(report)
+            print("\nNothing was run. Fix the configuration, or use --no-check "
+                  "to run anyway.", file=sys.stderr)
+            return 1
+        if verbose:
+            print(f"[md_interactions] pre-flight check: "
+                  f"{len(report.resolved)} selection(s) OK")
+
+    output = run_analyses(config, verbose=verbose, strict=args.strict,
+                          system=system, dataset=dataset)
     return 0 if output.ok else 1
 
 
+def _print_issues(report, stream=None) -> None:
+    """Report the problems found by the pre-flight check.
+
+    ``check`` writes them to stdout (the report *is* its output); ``run``
+    writes them to stderr, where an abort reason belongs.
+    """
+    stream = stream or sys.stderr
+    sys.stdout.flush()          # keep the order when stdout is redirected
+    print(f"\n{len(report.issues)} problem(s) found:\n", file=stream)
+    for issue in report.issues:
+        target = f' -> "{issue.selection}"' if issue.selection else ""
+        print(f"  [FAIL] {issue.context}{target}", file=stream)
+        print(f"         {issue.detail}", file=stream)
+
+
 def _cmd_check(args: argparse.Namespace) -> int:
+    from .validation import validate
+
     config = _load(args)
     print(f"Configuration OK: {config.source}")
     if config.data_only:
@@ -169,19 +219,12 @@ def _cmd_check(args: argparse.Namespace) -> int:
     print(f"  frames    : {system.n_frames} analysed "
           f"({system.times[0]:g} - {system.times[-1]:g} {system.time_unit})")
 
-    failures = 0
+    report = validate(config, system=system)
     print("\nSelections:")
-    for context, token in _collect_tokens(config):
-        selection = config.resolve_selection(token)
-        try:
-            group = system.select(token, name=context)
-            print(f"  [ok]   {context:<28} {token:<22} -> {group.n_atoms:6d} atoms")
-        except MDInteractionsError as exc:
-            failures += 1
-            print(f"  [FAIL] {context:<28} {token:<22} -> \"{selection}\"")
-            print(f"         {str(exc).splitlines()[0]}")
-    if failures:
-        print(f"\n{failures} selection(s) failed.")
+    for context, token, n_atoms in report.resolved:
+        print(f"  [ok]   {context:<28} {token:<22} -> {n_atoms:6d} atoms")
+    if not report.ok:
+        _print_issues(report, stream=sys.stdout)
         return 1
     print("\nAll selections resolve. Ready to run.")
     return 0
@@ -352,7 +395,7 @@ def _cmd_wizard(args: argparse.Namespace) -> int:
         run_wizard(topology=args.top, trajectory=args.traj, output=args.output,
                    force=args.force)
     except (KeyboardInterrupt, EOFError):
-        print("\nAsistente cancelado; no se ha escrito nada.", file=sys.stderr)
+        print("\nWizard cancelled; nothing was written.", file=sys.stderr)
         return 130
     return 0
 
@@ -376,12 +419,11 @@ def _check_data(config: Config) -> int:
               f"{values.mean():7.3f} ± {values.std():.3f} {dataset.unit}   "
               f"[{values.min():.2f}, {values.max():.2f}]")
 
-    unknown = [c for c in config.free_energy.maps
-               if c.x not in dataset.columns or c.y not in dataset.columns]
-    if unknown:
-        for spec in unknown:
-            print(f"  [FAIL] free-energy map '{spec.name}' references "
-                  f"'{spec.x}' / '{spec.y}', not in the data")
+    from .validation import validate
+
+    report = validate(config, dataset=dataset)
+    if not report.ok:
+        _print_issues(report, stream=sys.stdout)
         return 1
     print("\nAll columns available. Ready to run.")
     return 0
@@ -396,52 +438,6 @@ def _cmd_init(args: argparse.Namespace) -> int:
     path.write_text(DATA_CONFIG if args.data else EXAMPLE_CONFIG, encoding="utf-8")
     print(f"Example configuration written to {path}")
     return 0
-
-
-def _collect_tokens(config: Config) -> list[tuple[str, str]]:
-    """Every (context, selection token) pair referenced by the configuration."""
-    tokens: list[tuple[str, str]] = []
-    for name, selection in config.selections.items():
-        tokens.append((f"selections.{name}", name))
-    if config.system.align.enabled:
-        tokens.append(("system.align", config.system.align.selection))
-    for defn in config.distances.pairs:
-        tokens += [(f"distance:{defn.name}", tok) for tok in defn.atoms]
-    for defn in config.angles.angles:
-        tokens += [(f"angle:{defn.name}", tok) for tok in defn.atoms]
-    for defn in config.angles.dihedrals:
-        tokens += [(f"dihedral:{defn.name}", tok) for tok in defn.atoms]
-    for group in config.rmsd.groups:
-        tokens.append((f"rmsd:{group.name}", group.selection))
-        if group.superposition:
-            tokens.append((f"rmsd:{group.name}.fit", group.superposition))
-    if config.rmsf.enabled:
-        tokens.append(("rmsf", config.rmsf.selection))
-        if config.rmsf.align_selection:
-            tokens.append(("rmsf.fit", config.rmsf.align_selection))
-    for hb in config.hbonds.pairs:
-        tokens.append((f"hbond:{hb.name}.donor", hb.donor))
-        tokens.append((f"hbond:{hb.name}.acceptor", hb.acceptor))
-        if hb.hydrogen:
-            tokens.append((f"hbond:{hb.name}.hydrogen", hb.hydrogen))
-    for i, (sel_a, sel_b) in enumerate(config.hbonds.auto_between):
-        tokens.append((f"hbonds.auto_between[{i}].0", sel_a))
-        tokens.append((f"hbonds.auto_between[{i}].1", sel_b))
-    for group in config.rgyr.groups:
-        tokens.append((f"rgyr:{group.name}", group.selection))
-    for pair in config.rdf.pairs:
-        tokens.append((f"rdf:{pair.name}.g1", pair.g1))
-        tokens.append((f"rdf:{pair.name}.g2", pair.g2))
-    if config.clustering.enabled:
-        tokens.append(("clustering", config.clustering.selection))
-
-    seen: set[tuple[str, str]] = set()
-    unique: list[tuple[str, str]] = []
-    for entry in tokens:
-        if entry not in seen:
-            seen.add(entry)
-            unique.append(entry)
-    return unique
 
 
 def main(argv: list[str] | None = None) -> int:

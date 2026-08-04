@@ -16,16 +16,16 @@ const KIND_BY_COUNT = { 2: "distance", 3: "angle", 4: "dihedral" };
 // --------------------------------------------------------------------------
 async function loadSystem() {
   const info = await (await fetch("/api/system")).json();
-  const ligands = info.ligands.map((l) => `${l.resname}${l.resid}`).join(", ") || "ninguno";
+  const ligands = info.ligands.map((l) => `${l.resname}${l.resid}`).join(", ") || "none";
   $("system-info").textContent =
-    `${info.n_atoms.toLocaleString()} átomos · ${info.n_protein_residues} residuos de proteína · ` +
-    `${info.n_frames} frames · ligandos: ${ligands}`;
+    `${info.n_atoms.toLocaleString()} atoms &middot; ${info.n_protein_residues} protein residues &middot; ` +
+    `${info.n_frames} frames &middot; ligands: ${ligands}`;
   $("stride").value = info.stride;
 }
 
 async function loadStructure() {
   const waters = $("show-waters").checked ? 1 : 0;
-  $("pick-status").textContent = "cargando estructura...";
+  $("pick-status").textContent = "loading structure...";
   const data = await (await fetch(`/api/structure?waters=${waters}`)).json();
   state.indices = data.indices;
 
@@ -40,7 +40,7 @@ async function loadStructure() {
   state.viewer.render();
 
   state.viewer.setClickable({}, true, (atom) => pickAtom(atom));
-  $("pick-status").textContent = "pincha átomos en la estructura";
+  $("pick-status").textContent = "click atoms in the structure";
   redrawPicks();
 }
 
@@ -67,7 +67,7 @@ function pickAtom(atom) {
   if (universeIndex === undefined) return;
   if (state.picked.some((p) => p.serial === serial)) return;
   if (state.picked.length >= 4) {
-    $("pick-status").innerHTML = '<span class="error">máximo 4 átomos; añade o limpia</span>';
+    $("pick-status").innerHTML = '<span class="error">4 atoms maximum; add or clear</span>';
     return;
   }
   state.picked.push({
@@ -111,12 +111,12 @@ function redrawPicks() {
   const kind = KIND_BY_COUNT[state.picked.length];
   $("add-interaction").disabled = !kind;
   $("measure-hint").textContent = kind
-    ? `${state.picked.length} átomos seleccionados → ${translate(kind)}`
-    : "Pincha 2 átomos para una distancia, 3 para un ángulo, 4 para un diedro.";
+    ? `${state.picked.length} atoms selected -> ${translate(kind)}`
+    : "Click 2 atoms for a distance, 3 for an angle, 4 for a dihedral.";
 }
 
 function translate(kind) {
-  return { distance: "distancia", angle: "ángulo", dihedral: "diedro" }[kind] || kind;
+  return { distance: "distance", angle: "angle", dihedral: "dihedral" }[kind] || kind;
 }
 
 // --------------------------------------------------------------------------
@@ -193,7 +193,7 @@ function renderInteractions() {
 // --------------------------------------------------------------------------
 async function detect(mode) {
   const output = $("detect-output");
-  output.innerHTML = '<span class="spinner"></span> analizando la trayectoria...';
+  output.innerHTML = '<span class="spinner"></span> analysing the trajectory...';
   try {
     const response = await fetch("/api/explore", {
       method: "POST",
@@ -225,18 +225,18 @@ function badge(kind) {
 }
 
 function renderContacts(rows) {
-  if (!rows.length) return '<p class="muted small">Nada por encima del umbral.</p>';
+  if (!rows.length) return '<p class="muted small">Nothing above the threshold.</p>';
   const body = rows.map((row, position) => `
-    <tr class="clickable" data-row="${position}" title="clic para añadirlo a la lista">
+    <tr class="clickable" data-row="${position}" title="click to add it to the list">
       <td>${row.atom_a}</td><td>${row.atom_b}</td><td>${badge(row.kind)}</td>
       <td>${row["occupancy_%"].toFixed(0)}%</td>
       <td>${row.distance_mean == null ? "" : row.distance_mean.toFixed(2)}</td>
     </tr>`).join("");
   setTimeout(() => bindContactRows(rows), 0);
   return `<div class="detected"><table>
-      <thead><tr><th>A</th><th>B</th><th>tipo</th><th>ocup.</th><th>d (Å)</th></tr></thead>
+      <thead><tr><th>A</th><th>B</th><th>type</th><th>occup.</th><th>d (A)</th></tr></thead>
       <tbody>${body}</tbody></table>
-      <p class="muted small">Clic en una fila para medirla.</p></div>`;
+      <p class="muted small">Click a row to measure it.</p></div>`;
 }
 
 function bindContactRows(rows) {
@@ -245,8 +245,8 @@ function bindContactRows(rows) {
       const row = rows[parseInt(element.dataset.row, 10)];
       if (String(row.atom_b).includes("(any)")) {
         $("detect-output").insertAdjacentHTML("beforeend",
-          '<p class="muted small">El agua agregada no es un átomo fijo: usa el modo ' +
-          '"mínima" desde el YAML si quieres seguirla.</p>');
+          '<p class="muted small">Aggregated water is not a fixed atom: use mode ' +
+          '"min" from the input file to follow it.</p>');
         return;
       }
       addInteraction([parseLabel(row.atom_a), parseLabel(row.atom_b)], 3.5);
@@ -265,23 +265,23 @@ function renderChanges(data) {
   const bonds = data.bonds || [];
   const protons = data.protons || [];
   if (!bonds.length && !protons.length) {
-    return '<p class="ok small">Sin cambios químicos: la topología describe bien esta trayectoria.</p>';
+    return '<p class="ok small">No chemical changes: the topology describes this trajectory correctly.</p>';
   }
   let html = '<div class="detected">';
   if (bonds.length) {
-    html += "<table><thead><tr><th>evento</th><th>A</th><th>B</th><th>estado</th></tr></thead><tbody>";
+    html += "<table><thead><tr><th>event</th><th>A</th><th>B</th><th>state</th></tr></thead><tbody>";
     html += bonds.map((row) => `<tr><td>${row.event}</td><td>${row.atom_a}</td>
       <td>${row.atom_b}</td><td class="muted">${row.state || ""}${
   row.note ? "<br>" + row.note : ""}</td></tr>`).join("");
     html += "</tbody></table>";
   }
   if (protons.length) {
-    html += "<p class='small'><b>Protones migrados</b></p><table><tbody>";
+    html += "<p class='small'><b>Transferred protons</b></p><table><tbody>";
     html += protons.map((row) => `<tr><td>${row.hydrogen}</td>
       <td class="muted">${row.hosts}</td></tr>`).join("");
     html += "</tbody></table>";
   }
-  html += '<p class="error small">Trayectoria reactiva: la topología describe solo la estructura inicial.</p>';
+  html += '<p class="error small">Reactive trajectory: the topology only describes the starting structure.</p>';
   return html + "</div>";
 }
 
@@ -290,7 +290,7 @@ function renderChanges(data) {
 // --------------------------------------------------------------------------
 async function run() {
   $("run").disabled = true;
-  $("run-status").innerHTML = '<span class="spinner"></span> lanzando...';
+  $("run-status").innerHTML = '<span class="spinner"></span> starting...';
   const response = await fetch("/api/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -322,7 +322,7 @@ async function pollJob() {
     return;
   }
   if (job.status === "done") {
-    $("run-status").innerHTML = '<p class="ok">Análisis terminado</p>';
+    $("run-status").innerHTML = '<p class="ok">Analysis finished</p>';
     showResults(job.result);
   }
 }
@@ -332,7 +332,7 @@ function showResults(result) {
   $("results-card").hidden = false;
   let html = "";
   if (result.summary && result.summary.length) {
-    html += "<table><thead><tr><th>observable</th><th>media ± sd</th><th>min</th><th>max</th></tr></thead><tbody>";
+    html += "<table><thead><tr><th>observable</th><th>mean &plusmn; sd</th><th>min</th><th>max</th></tr></thead><tbody>";
     html += result.summary.map((row) => `<tr>
       <td>${row.observable}</td>
       <td>${fmt(row.mean)} ± ${fmt(row.std)} ${row.unit || ""}</td>
@@ -344,7 +344,7 @@ function showResults(result) {
   });
   html += result.plots.map((name) =>
     `<img src="/results/plots/${name}?t=${Date.now()}" alt="${name}">`).join("");
-  html += `<p class="muted small">Escrito en <code>${result.directory}</code></p>`;
+  html += `<p class="muted small">Written to <code>${result.directory}</code></p>`;
   container.innerHTML = html;
 }
 

@@ -1,39 +1,39 @@
 # =============================================================================
-# Distancias clave — sistema QMMM_preReactive (3 réplicas)
+# Key distances - QMMM_preReactive system (3 replicas)
 #
-#   md-analyzer check -c analysis/qmmm_distances.yaml   <- EJECUTA ESTO PRIMERO
+#   md-analyzer check -c analysis/qmmm_distances.yaml   <- RUN THIS FIRST
 #   md-analyzer run   -c analysis/qmmm_distances.yaml
 #
-# Traduce a selecciones MDAnalysis las 11 distancias de mc_distances.yaml,
-# ahora midiéndolas directamente sobre la trayectoria (no sobre el .dat de
-# cpptraj), con R32 -> resid 414 según se indicó.
+# Translates the 11 distances of mc_distances.yaml into MDAnalysis selections,
+# measuring them directly on the trajectory (rather than on the cpptraj
+# .dat), with R32 -> resid 414 as indicated.
 #
-# IMPORTANTE - LEE ESTO ANTES DE LANZAR EL RUN:
-# He verificado la numeración de residuos contra una copia de
-# earp_efp_tdp-r_ok.prmtop que tengo localizada en otra carpeta (Metadyn/),
-# no exactamente la que me diste en QMMM_preReactive/. Con esa copia:
+# IMPORTANT - READ THIS BEFORE RUNNING:
+# The residue numbering was verified against a copy of
+# earp_efp_tdp-r_ok.prmtop found in another folder (Metadyn/),
+# not exactly the one in QMMM_preReactive/. With that copy:
 #
-#   CONFIRMADOS (mismo resid, tipo de residuo y átomos correctos):
+#   CONFIRMED (same resid, residue type and correct atoms):
 #     20 ASP (OD1/OD2), 16 ASP (OD1), 115 TYR (OH/HH), 272 SER (OG/HG),
 #     89 GLU (OE1/OE2), 249 PHE, 255 PHE, y 414 ARG (HH11/HH12/HH21/HH22,
 #     NE/HE, NH1/NH2) tal como confirmaste para R32->R414.
 #
-#   NO CONFIRMADOS - en esa copia el resid no es el tipo esperado:
-#     - resid 265 es ALA, no ARG  (hay un ARG en 268, 3 posiciones más allá)
-#     - resid 55  es ASP, no LYS  (hay un ARG en 50, no un LYS cercano)
-#     - resid 36  es GLY, no LYS  (hay un ARG en 33, no un LYS cercano)
-#     - resid 114 es GLU (correcto), pero el átomo "OE3" no existe en Glu
-#       (solo OE1/OE2) -> uso mode:min sobre OE1 y OE2
+#   NOT CONFIRMED - in that copy the resid is not the expected type:
+#     - resid 265 is ALA, not ARG (there is an ARG at 268, three positions further)
+#     - resid 55  is ASP, not LYS (there is an ARG at 50, no nearby LYS)
+#     - resid 36  is GLY, not LYS (there is an ARG at 33, no nearby LYS)
+#     - resid 114 is GLU (correct), but the atom "OE3" does not exist in Glu
+#       (only OE1/OE2) -> mode:min over OE1 and OE2 is used
 #
-#   La hipótesis más probable es que la copia que usé para verificar (de la
-#   carpeta Metadyn/) tiene una inserción/deleción de unos pocos residuos en
-#   torno a esa región respecto al .prmtop real de QMMM_preReactive/, y por
-#   tanto en TU topología los resid 265/55/36 sí pueden ser correctos.
-#   NO los he corregido a ciegas (podría acertar el resid equivocado, que es
-#   peor que fallar la selección). Están tal cual como en mc_distances.yaml.
+#   The most likely explanation is that the copy used for verification (from
+#   the Metadyn/ folder) has an insertion/deletion of a few residues around
+#   that region relative to the real QMMM_preReactive/ prmtop, so in YOUR
+#   topology resids 265/55/36 may well be correct.
+#   They were NOT corrected blindly (hitting the wrong resid is worse than
+#   a failing selection). They are left as in mc_distances.yaml.
 #
-#   Ejecuta 'md-analyzer check' primero: si alguno de esos tres falla o
-#   encuentra un residuo del tipo equivocado, dímelo o ajusta el resid aquí.
+#   Run 'md-analyzer check' first: if any of those three fails or finds
+#   a residue of the wrong type, adjust the resid here.
 # =============================================================================
 
 system:
@@ -43,14 +43,14 @@ system:
     rep2: [../QMMM_preReactive/QMMM_restricted2/qmmm-100ps.nc]
     rep3: [../QMMM_preReactive/QMMM_restricted3/qmmm-100ps.nc]
   time:
-    dt: null                  # se lee de la trayectoria
+    dt: null                  # read from the trajectory
     unit: ps
   frames:
     start: 0
     stop: null
-    stride: 1                 # sube esto si las 3x100 ps pesan demasiado
+    stride: 1                 # raise this if 3x100 ps is too heavy
   align:
-    enabled: false             # las distancias no lo necesitan
+    enabled: false             # distances do not need it
 
 output:
   directory: results_qmmm_distances
@@ -58,7 +58,7 @@ output:
   dpi: 300
 
 selections:
-  # -- confirmados --
+  # -- confirmed --
   D20_OD1:   "resid 20 and name OD1"
   D20_OD2:   "resid 20 and name OD2"
   D16_OD1:   "resid 16 and name OD1"
@@ -76,11 +76,11 @@ selections:
   PHE249_RING: "resid 249 and name CG CD1 CD2 CE1 CE2 CZ"
   PHE255_RING: "resid 255 and name CG CD1 CD2 CE1 CE2 CZ"
 
-  # -- SIN CONFIRMAR: verifica con 'check' antes de fiarte de estas --
+  # -- NOT CONFIRMED: check these before trusting them --
   R265_HH21: "resid 265 and name HH21"
   R265_HE:   "resid 265 and name HE"
   K55_NZ:    "resid 55 and name NZ"
-  E114_OE:   "resid 114 and name OE1 OE2"   # "OE3" del .dat no existe; min de las dos
+  E114_OE:   "resid 114 and name OE1 OE2"   # the ".dat" OE3 does not exist; min of the two
   K36_NZ:    "resid 36 and name NZ"
 
 analyses:
@@ -90,7 +90,7 @@ analyses:
     bins: 60
     kde: true
     pbc: true
-    facet: true                # una sola figura multipanel, como en mc_distances
+    facet: true                # a single multi-panel figure, as in mc_distances
     normalization: density
     pairs:
       - name: d_D20OD1_R414HH12
@@ -120,14 +120,14 @@ analyses:
 
       - name: d_E89OE2_K55NZ
         atoms: [E89_OE2, K55_NZ]
-        label: "89:OE2 - K55:NZ"          # K55 sin confirmar, ver aviso arriba
+        label: "89:OE2 - K55:NZ"          # K55 unconfirmed, see the warning above
 
       - name: d_E114OE_K36NZ
         atoms: [E114_OE, K36_NZ]
         mode: min
-        label: "114:OE1/OE2 - K36:NZ"     # 114 y K36 sin confirmar, ver aviso arriba
+        label: "114:OE1/OE2 - K36:NZ"     # 114 and K36 unconfirmed, see the warning above
 
-      # -- sin confirmar (resid 265, ver aviso arriba) --
+      # -- unconfirmed (resid 265, see the warning above) --
       - name: d_TRH_O4P_R265HH21
         atoms: [TRH_O4P, R265_HH21]
         label: "TRH:O4P - R265:HH21"
@@ -138,26 +138,26 @@ analyses:
         label: "TRH:O3P - R265:HE"
         threshold: 2.5
 
-      # -- distancias ligando-Phe: no sé cómo se definieron en el .dat
-      # original (¿COM-COM del residuo completo? ¿centroide del anillo?).
-      # Aquí uso centro de masas del ligando completo vs. centroide del
-      # anillo aromático de cada Phe; ajusta si tu script de cpptraj usaba
-      # otra definición.
+      # -- ligand-Phe distances: how they were defined in the original .dat
+      # is unknown (COM-COM of the whole residue? ring centroid?).
+      # Here the centre of mass of the whole ligand is used against the
+      # aromatic ring centroid of each Phe; adjust if the cpptraj script
+      # used another definition.
       - name: d_TRH_F249
         atoms: [TRH_ALL, PHE249_RING]
         mode: com
-        label: "TRH (COM) - F249 (anillo)"
+        label: "TRH (COM) - F249 (ring)"
 
       - name: d_TRH_F255
         atoms: [TRH_ALL, PHE255_RING]
         mode: com
-        label: "TRH (COM) - F255 (anillo)"
+        label: "TRH (COM) - F255 (ring)"
 
   free_energy_maps:
     enabled: true
     temperature: 300.0
     maps:
-      - name: fes_OD1_OD2         # bidentado vs. monodentado del puente salino
+      - name: fes_OD1_OD2         # bidentate vs monodentate salt bridge
         x: d_D20OD1_R414HH12
         y: d_D20OD2_R414HH22
         bins: 60
@@ -167,4 +167,4 @@ analyses:
 report:
   enabled: true
   formats: [markdown, html]
-  title: "QMMM preReactive — distancias clave (3 réplicas)"
+  title: "QMMM preReactive - key distances (3 replicas)"

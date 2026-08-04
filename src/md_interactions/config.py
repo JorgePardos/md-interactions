@@ -751,23 +751,44 @@ class RgyrConfig:
 
 @dataclass
 class RDFPair:
+    """One radial distribution function.
+
+    ``center`` decides what the distances are measured from: ``atom`` (every
+    atom of ``g1``, the standard definition) or ``com``/``residue`` (a single
+    centre at the centre of mass of ``g1``, for "solvent around this residue").
+    ``shell_cutoff`` overrides the automatically detected first minimum used
+    for the hydration-number time series.
+    """
+
     name: str
     g1: str
     g2: str
     nbins: int = 75
     range: tuple[float, float] = (0.0, 15.0)
     exclude_same_residue: bool = False
+    center: str = "atom"
+    shell_cutoff: float | None = None
 
     @classmethod
     def from_dict(cls, data: Any, index: int) -> "RDFPair":
         where = f"analyses.rdf.pairs[{index}]"
         data = _as_mapping(data, where)
         _check_keys(
-            data, ["name", "g1", "g2", "nbins", "range", "exclude_same_residue"], where
+            data,
+            ["name", "g1", "g2", "nbins", "range", "exclude_same_residue",
+             "center", "shell_cutoff"],
+            where,
         )
         rng = _as_list(data.get("range", [0.0, 15.0]), f"{where}.range")
         if len(rng) != 2:
             raise ConfigError(f"'{where}.range' must be [rmin, rmax].")
+        center = str(data.get("center", "atom")).lower()
+        if center not in {"atom", "com", "residue"}:
+            raise ConfigError(
+                f"'{where}.center' must be 'atom', 'com' or 'residue' "
+                f"(got '{center}')."
+            )
+        cutoff = data.get("shell_cutoff")
         return cls(
             name=str(_require(data, "name", where)),
             g1=str(_require(data, "g1", where)),
@@ -775,6 +796,8 @@ class RDFPair:
             nbins=int(data.get("nbins", 75)),
             range=(float(rng[0]), float(rng[1])),
             exclude_same_residue=bool(data.get("exclude_same_residue", False)),
+            center=center,
+            shell_cutoff=float(cutoff) if cutoff is not None else None,
         )
 
 

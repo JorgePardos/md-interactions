@@ -1,11 +1,11 @@
-"""Localiza el ARG/LYS correcto cuando el resid nominal no coincide.
+"""Locate the right ARG/LYS when the nominal resid does not match.
 
-Uso:
+Usage:
     python find_residues.py <ruta_al_prmtop>
 
-Busca, alrededor de cada resid que falló en 'check' (265, 55, 36), el residuo
-del tipo esperado (ARG o LYS) más cercano en la topología real, para poder
-corregir las selecciones de qmmm_distances.yaml sin adivinar.
+Around each resid that failed in 'check' (265, 55, 36), find the nearest
+residue of the expected type (ARG or LYS) in the real topology, so that
+the selections of qmmm_distances.yaml can be fixed without guessing.
 """
 
 import sys
@@ -16,11 +16,11 @@ import MDAnalysis as mda
 
 TOPOLOGY = sys.argv[1] if len(sys.argv) > 1 else None
 if not TOPOLOGY:
-    raise SystemExit("Uso: python find_residues.py <ruta_al_prmtop>")
+    raise SystemExit("Usage: python find_residues.py <ruta_al_prmtop>")
 
 u = mda.Universe(TOPOLOGY)
 
-# (resid nominal que falló, tipo de residuo esperado, ventana de búsqueda)
+# (nominal resid that failed, expected residue type, search window)
 TARGETS = [
     (265, "ARG", 15),   # TRH:O4P/O3P - R265:HH21/HE
     (55, "LYS", 15),    # 89:OE2 - K55:NZ
@@ -28,24 +28,24 @@ TARGETS = [
 ]
 
 for nominal, resname, window in TARGETS:
-    print(f"\n=== resid {nominal} esperado {resname} ===")
+    print(f"\n=== resid {nominal} expected {resname} ===")
     around = u.select_atoms(f"resid {nominal - window}-{nominal + window}")
-    print("  contexto (resid, resname):")
+    print("  context (resid, resname):")
     for r in around.residues:
-        marker = "  <-- coincide en tipo" if r.resname == resname else ""
-        here = " (resid nominal)" if r.resid == nominal else ""
+        marker = "  <-- type matches" if r.resname == resname else ""
+        here = " (nominal resid)" if r.resid == nominal else ""
         print(f"    {r.resid:5d} {r.resname:4s}{here}{marker}")
 
     candidates = [r for r in around.residues if r.resname == resname]
     if candidates:
         closest = min(candidates, key=lambda r: abs(r.resid - nominal))
-        print(f"  >>> candidato mas cercano: resid {closest.resid} "
-              f"(distancia en numeracion: {closest.resid - nominal:+d})")
+        print(f"  >>> nearest candidate: resid {closest.resid} "
+              f"(numbering distance: {closest.resid - nominal:+d})")
     else:
-        print(f"  >>> ningun {resname} encontrado en ese rango; "
-              f"prueba a ampliar 'window' en el script")
+        print(f"  >>> no {resname} found in that range; "
+              f"try widening 'window' in the script")
 
-print("\n--- todos los ARG de la proteina (por si el candidato no aparece arriba) ---")
+print("\n--- every ARG in the protein (in case the candidate is not listed above) ---")
 print([int(r.resid) for r in u.select_atoms("resname ARG").residues])
-print("\n--- todos los LYS de la proteina ---")
+print("\n--- every LYS in the protein ---")
 print([int(r.resid) for r in u.select_atoms("resname LYS").residues])

@@ -278,13 +278,13 @@ def _start_run(state: GuiState, body: dict) -> None:
     """Launch the analysis in a worker thread so the UI stays responsive."""
     if state.job["status"] == "running":
         raise MDInteractionsError("An analysis is already running.")
-    state.job = {"status": "running", "message": "Preparando...", "result": None}
+    state.job = {"status": "running", "message": "Preparing...", "result": None}
 
     def worker() -> None:
         try:
-            state.job["message"] = "Ejecutando análisis..."
+            state.job["message"] = "Running the analysis..."
             result = _run_analysis(state, body)
-            state.job = {"status": "done", "message": "Listo", "result": result}
+            state.job = {"status": "done", "message": "Done", "result": result}
         except Exception as exc:
             state.job = {"status": "error",
                          "message": f"{type(exc).__name__}: {exc}", "result": None}
@@ -402,13 +402,13 @@ def serve(topology, trajectory=None, port: int = 8765, stride: int = 1,
     handler = type("_BoundHandler", (_Handler,), {"state": state})
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://localhost:{port}"
-    print(f"[md_interactions] GUI en {url}")
-    print("[md_interactions] Ctrl-C para salir")
+    print(f"[md_interactions] GUI at {url}")
+    print("[md_interactions] Ctrl-C to quit")
     if open_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n[md_interactions] cerrado")
+        print("\n[md_interactions] closed")
     finally:
         server.server_close()

@@ -80,15 +80,15 @@ class Prompt:
             answer = self._input(f"{question} {suffix}: ").strip().lower()
             if not answer:
                 return default
-            if answer in {"s", "si", "sí", "y", "yes"}:
+            if answer in {"y", "yes", "s", "si"}:
                 return True
             if answer in {"n", "no"}:
                 return False
-            self.warn("Responde 's' o 'n'.")
+            self.warn("Please answer 'y' or 'n'.")
 
     def number(self, question: str, default: float | None = None,
                cast: Callable = float) -> float | None:
-        suffix = f" [{default}]" if default is not None else " [Enter = ninguno]"
+        suffix = f" [{default}]" if default is not None else " [Enter = none]"
         while True:
             answer = self._input(f"{question}{suffix}: ").strip()
             if not answer:
@@ -96,7 +96,7 @@ class Prompt:
             try:
                 return cast(answer)
             except ValueError:
-                self.warn(f"'{answer}' no es un número válido.")
+                self.warn(f"'{answer}' is not a valid number.")
 
     def choice(self, question: str, options: list[tuple[str, str, str]]) -> str:
         """Menu; ``options`` are ``(key, label, description)`` triples."""
@@ -108,7 +108,7 @@ class Prompt:
             answer = self._input(f"{question}: ").strip().lower()
             if answer in valid:
                 return answer
-            self.warn(f"Opción no válida. Elige una de: {', '.join(sorted(valid))}")
+            self.warn(f"Invalid option. Choose one of: {', '.join(sorted(valid))}")
 
 
 # --------------------------------------------------------------------------- #
@@ -159,12 +159,12 @@ class AtomResolver:
                 resolved = self.resolve(answer)
             except MDInteractionsError as exc:
                 self.prompt.warn(str(exc))
-                self.prompt.warn("Escribe '?' para ver la ayuda de búsqueda.")
+                self.prompt.warn("Type '?' to see the search help.")
                 continue
             if expect_single and resolved.n_atoms != 1:
                 self.prompt.warn(
-                    f"{resolved.description} casa {resolved.n_atoms} átomos y aquí "
-                    "hace falta exactamente 1. Afina la selección."
+                    f"{resolved.description} matches {resolved.n_atoms} atoms but exactly "
+                    "1 is needed here. Refine the selection."
                 )
                 continue
             self.prompt.ok(f"{resolved.description}")
@@ -175,32 +175,32 @@ class AtomResolver:
         """Turn one spec into a validated :class:`ResolvedAtom`."""
         text = text.strip()
         if not text:
-            raise MDInteractionsError("Selección vacía.")
+            raise MDInteractionsError("Empty selection.")
         selection, alias = self._to_selection(text)
         try:
             group = self.universe.select_atoms(selection)
         except Exception as exc:
-            raise MDInteractionsError(f"Selección inválida: {exc}") from exc
+            raise MDInteractionsError(f"Invalid selection: {exc}") from exc
         if group.n_atoms == 0:
             raise MDInteractionsError(
-                f'"{selection}" no casa ningún átomo en esta topología.'
+                f'"{selection}" matches no atom in this topology.'
             )
         # Prefer an alias built from what actually matched (ASP20_OD1) over the
         # one guessed from the raw input (20_OD1): the YAML stays readable.
         if group.n_atoms == 1:
             atom = group[0]
-            description = f"{atom.resname}{atom.resid}:{atom.name} (1 átomo)"
+            description = f"{atom.resname}{atom.resid}:{atom.name} (1 atom)"
             alias = f"{atom.resname}{atom.resid}_{atom.name}"
         elif group.residues.n_residues == 1:
             residue = group.residues[0]
             names = "_".join(group.names[:4])
             description = (f"{residue.resname}{residue.resid}:"
-                           f"{','.join(group.names)} ({group.n_atoms} átomos)")
+                           f"{','.join(group.names)} ({group.n_atoms} atoms)")
             alias = f"{residue.resname}{residue.resid}_{names}"
         else:
             residues = sorted({f"{r.resname}{r.resid}" for r in group.residues})
             shown = ", ".join(residues[:3]) + ("..." if len(residues) > 3 else "")
-            description = f"{group.n_atoms} átomos ({shown})"
+            description = f"{group.n_atoms} atoms ({shown})"
             alias = alias or f"grupo_{len(self._aliases) + 1}"
         return ResolvedAtom(alias=_safe_alias(alias), selection=selection,
                             n_atoms=group.n_atoms, description=description)
@@ -216,7 +216,7 @@ class AtomResolver:
         atoms = [a for a in atom_part.replace(",", " ").split() if a]
         if not residue_part or not atoms:
             raise MDInteractionsError(
-                "Formato esperado: residuo@átomo, por ejemplo 20@OD1 o TRH@O2P."
+                "Expected format: residue@atom, for example 20@OD1 or TRH@O2P."
             )
 
         if residue_part.isdigit():
@@ -230,7 +230,7 @@ class AtomResolver:
             number = "".join(c for c in residue_part if c.isdigit())
             if not name or not number:
                 raise MDInteractionsError(
-                    f"No entiendo el residuo '{residue_part}'. Usa 20, ASP20 o TRH."
+                    f"Cannot read the residue '{residue_part}'. Use 20, ASP20 or TRH."
                 )
             self._check_resname(int(number), name)
             residue_selection = f"resid {number}"
@@ -242,12 +242,12 @@ class AtomResolver:
     def _check_resname(self, resid: int, expected: str) -> None:
         group = self.universe.select_atoms(f"resid {resid}")
         if group.n_atoms == 0:
-            raise MDInteractionsError(f"El residuo {resid} no existe en la topología.")
+            raise MDInteractionsError(f"Residue {resid} does not exist in this topology.")
         actual = group.residues[0].resname
         if actual.upper() != expected.upper():
             raise MDInteractionsError(
-                f"El residuo {resid} es {actual}, no {expected}. "
-                f"Usa '?{expected}' para listar los {expected} de la topología."
+                f"Residue {resid} is {actual}, not {expected}. "
+                f"Use '?{expected}' to list the {expected} residues in the topology."
             )
 
     def _answer_query(self, query: str) -> None:
@@ -255,29 +255,29 @@ class AtomResolver:
         universe = self.universe
         say = self.prompt.say
         if not query or query in {"help", "ayuda"}:
-            say("  Formatos aceptados:")
-            say("    20@OD1            resid 20, átomo OD1")
-            say("    ASP20@OD1         igual, comprobando que 20 es un ASP")
-            say("    TRH@O2P           por nombre de residuo")
-            say("    20@OD1,OD2        varios átomos del mismo residuo")
-            say("    resid 20 and name OD1     selección MDAnalysis literal")
-            say("  Búsquedas:")
-            say("    ?20               muestra el residuo 20 y sus átomos")
-            say("    ?ARG              lista todos los ARG de la topología")
-            say("    ?ligandos         lista los residuos no proteicos ni agua")
+            say("  Accepted formats:")
+            say("    20@OD1            resid 20, atom OD1")
+            say("    ASP20@OD1         same, checking that residue 20 is an ASP")
+            say("    TRH@O2P           by residue name")
+            say("    20@OD1,OD2        several atoms of the same residue")
+            say("    resid 20 and name OD1     literal MDAnalysis selection")
+            say("  Searches:")
+            say("    ?20               show residue 20 and its atoms")
+            say("    ?ARG              list every ARG in the topology")
+            say("    ?ligands          list residues that are neither protein nor water")
             return
 
         if query.isdigit():
             group = universe.select_atoms(f"resid {query}")
             if group.n_atoms == 0:
-                self.prompt.warn(f"El residuo {query} no existe.")
+                self.prompt.warn(f"Residue {query} does not exist.")
                 return
             residue = group.residues[0]
             say(f"  resid {query} = {residue.resname}")
-            say(f"    átomos: {', '.join(residue.atoms.names)}")
+            say(f"    atoms: {', '.join(residue.atoms.names)}")
             return
 
-        if query.lower() in {"ligandos", "ligands", "resnames"}:
+        if query.lower() in {"ligands", "ligandos", "resnames"}:
             protein_like = set(universe.select_atoms("protein").residues.resnames)
             water = {"WAT", "HOH", "SOL", "TIP3", "T3P"}
             others: dict[str, int] = {}
@@ -285,9 +285,9 @@ class AtomResolver:
                 if resname not in protein_like and resname not in water:
                     others[resname] = others.get(resname, 0) + 1
             if not others:
-                self.prompt.warn("No hay residuos no proteicos aparte del disolvente.")
+                self.prompt.warn("There are no non-protein residues besides the solvent.")
                 return
-            say("  residuos no proteicos:")
+            say("  residues no proteicos:")
             for resname, count in sorted(others.items(), key=lambda kv: -kv[1])[:20]:
                 resids = [int(r.resid) for r in
                           universe.select_atoms(f"resname {resname}").residues][:8]
@@ -296,11 +296,11 @@ class AtomResolver:
 
         group = universe.select_atoms(f"resname {query.upper()}")
         if group.n_atoms == 0:
-            self.prompt.warn(f"No hay residuos llamados '{query}'.")
+            self.prompt.warn(f"No hay residues llamados '{query}'.")
             return
         resids = [int(r.resid) for r in group.residues]
-        say(f"  {query.upper()}: {len(resids)} residuo(s) -> resid {resids}")
-        say(f"    átomos del primero: {', '.join(group.residues[0].atoms.names)}")
+        say(f"  {query.upper()}: {len(resids)} residue(s) -> resid {resids}")
+        say(f"    atoms of the first one: {', '.join(group.residues[0].atoms.names)}")
 
 
 def _safe_alias(name: str) -> str:
@@ -335,17 +335,17 @@ class _Draft:
 
 
 _MENU = [
-    ("1", "distancia", "entre dos átomos o grupos (con umbral opcional)"),
-    ("2", "ángulo", "definido por tres átomos"),
-    ("3", "diedro", "definido por cuatro átomos"),
-    ("4", "puente de H", "distancia D–A, ángulo D–H···A y ocupación"),
-    ("5", "RMSD", "global o local (ajuste sobre una selección, medida en otra)"),
-    ("6", "RMSF", "fluctuación por residuo"),
-    ("7", "radio de giro", "compactación de un dominio o del sitio activo"),
-    ("8", "RDF", "g(r) y número de coordinación entre dos selecciones"),
-    ("9", "clustering", "estados conformacionales + PDB representativo"),
-    ("10", "mapa 2D", "densidad / energía libre aparente de dos observables"),
-    ("f", "terminar", "escribir el YAML con lo añadido hasta ahora"),
+    ("1", "distance", "between two atoms or groups (optional threshold)"),
+    ("2", "angle", "defined by three atoms"),
+    ("3", "dihedral", "defined by four atoms"),
+    ("4", "hydrogen bond", "D-A distance, D-H...A angle and occupancy"),
+    ("5", "RMSD", "global or local (fit on one selection, measure another)"),
+    ("6", "RMSF", "per-residue fluctuation"),
+    ("7", "radius of gyration", "compaction of a domain or the active site"),
+    ("8", "RDF", "g(r), solvation shell and coordination number"),
+    ("9", "clustering", "conformational states + representative PDB"),
+    ("10", "2D map", "density / apparent free energy of two observables"),
+    ("f", "finish", "write the YAML with whatever has been added"),
 ]
 
 
@@ -361,61 +361,61 @@ def run_wizard(
     import MDAnalysis as mda
 
     prompt = Prompt(input_fn, print_fn)
-    prompt.say("=== md_interactions — asistente de configuración ===")
-    prompt.say("Enter acepta el valor por defecto; '?' muestra ayuda en las selecciones.")
+    prompt.say("=== md_interactions - configuration wizard ===")
+    prompt.say("Enter accepts the default; type '?' for help on any selection.")
 
     # -- 1. system ------------------------------------------------------- #
-    prompt.title("1/4  Sistema")
-    topology = topology or prompt.text("Topología (.prmtop/.parm7/.pdb)")
+    prompt.title("1/4  System")
+    topology = topology or prompt.text("Topology (.prmtop/.parm7/.pdb)")
     topology_path = Path(str(topology))
     if not topology_path.is_file():
-        raise MDInteractionsError(f"No encuentro la topología: {topology_path}")
+        raise MDInteractionsError(f"Topology not found: {topology_path}")
 
     try:
         universe = mda.Universe(str(topology_path))
     except Exception as exc:
-        raise MDInteractionsError(f"No pude leer la topología: {exc}") from exc
+        raise MDInteractionsError(f"Could not read the topology: {exc}") from exc
 
     protein = universe.select_atoms("protein")
-    prompt.ok(f"{universe.atoms.n_atoms} átomos, "
-              f"{universe.residues.n_residues} residuos "
-              f"({protein.residues.n_residues} de proteína)")
+    prompt.ok(f"{universe.atoms.n_atoms} atoms, "
+              f"{universe.residues.n_residues} residues "
+              f"({protein.residues.n_residues} protein)")
 
     draft = _Draft()
     draft.system["topology"] = str(topology_path)
 
     trajectory = list(trajectory or [])
     if not trajectory:
-        answer = prompt.text("Trayectoria(s), separadas por espacios", default="",
+        answer = prompt.text("Trajectory file(s), space separated", default="",
                              allow_empty=True)
         trajectory = answer.split()
     if trajectory:
         if len(trajectory) > 1 and prompt.yes_no(
-            "¿Son réplicas independientes (en vez de tramos de una misma run)?",
+            "Are these independent replicas (rather than pieces of a single run)?",
             default=True,
         ):
             draft.system["replicas"] = {
                 f"rep{i + 1}": [str(path)] for i, path in enumerate(trajectory)
             }
-            prompt.ok(f"{len(trajectory)} réplicas declaradas")
+            prompt.ok(f"{len(trajectory)} replicas declared")
         else:
             draft.system["trajectory"] = [str(p) for p in trajectory]
     else:
         draft.system["trajectory"] = ["CAMBIAME.nc"]
-        prompt.warn("Sin trayectoria: pon la ruta en 'system.trajectory' antes de correr.")
+        prompt.warn("No trajectory given: set the path in 'system.trajectory' before running.")
 
-    unit = prompt.text("Unidad de tiempo (ps/ns/frame)", default="ns")
-    dt = prompt.number("Tiempo entre frames guardados (Enter = leer de la trayectoria)")
+    unit = prompt.text("Time unit (ps/ns/frame)", default="ns")
+    dt = prompt.number("Time between saved frames (Enter = read it from the trajectory)")
     draft.system["time"] = {"dt": dt, "unit": unit}
-    stride = prompt.number("Stride (analizar 1 de cada N frames)", default=1, cast=int)
+    stride = prompt.number("Stride (analyse 1 frame every N)", default=1, cast=int)
     if stride and stride > 1:
         draft.system["frames"] = {"stride": int(stride)}
 
     # -- 2. interactions ------------------------------------------------- #
-    prompt.title("2/4  Interacciones a medir")
+    prompt.title("2/4  Interactions to measure")
     resolver = AtomResolver(universe, prompt)
     while True:
-        option = prompt.choice("¿Qué añado?", _MENU)
+        option = prompt.choice("What shall I add?", _MENU)
         if option == "f":
             break
         _dispatch(option, prompt, resolver, draft)
@@ -423,33 +423,33 @@ def run_wizard(
     draft.selections = resolver.aliases
 
     # -- 3. output ------------------------------------------------------- #
-    prompt.title("3/4  Salida")
-    draft.output["directory"] = prompt.text("Carpeta de resultados", default="results")
-    formats = prompt.text("Formatos de figura", default="png pdf").split()
+    prompt.title("3/4  Output")
+    draft.output["directory"] = prompt.text("Results directory", default="results")
+    formats = prompt.text("Figure formats", default="png pdf").split()
     draft.output["formats"] = formats
     draft.output["dpi"] = int(prompt.number("DPI", default=300, cast=int))
-    if prompt.yes_no("¿Generar informe Markdown + HTML?", default=True):
+    if prompt.yes_no("Generate a Markdown + HTML report?", default=True):
         draft.report = {"enabled": True, "formats": ["markdown", "html"]}
     else:
         draft.report = {"enabled": False}
 
     # -- 4. write -------------------------------------------------------- #
-    prompt.title("4/4  Escribiendo la configuración")
+    prompt.title("4/4  Writing the configuration")
     if not draft.analyses:
-        prompt.warn("No añadiste ningún análisis; el YAML saldrá vacío de 'analyses'.")
+        prompt.warn("No analysis was added; the 'analyses' section will be empty.")
 
     destination = Path(str(output))
     if destination.exists() and not force:
-        if not prompt.yes_no(f"{destination} ya existe. ¿Sobrescribir?", default=False):
-            destination = Path(prompt.text("Nombre alternativo", default="config_2.yaml"))
+        if not prompt.yes_no(f"{destination} already exists. Overwrite?", default=False):
+            destination = Path(prompt.text("Alternative name", default="config_2.yaml"))
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     body = yaml.safe_dump(draft.to_dict(), sort_keys=False, allow_unicode=True,
                           default_flow_style=False)
     destination.write_text(_HEADER.format(name=destination.name) + body, encoding="utf-8")
 
-    prompt.ok(f"escrito {destination}")
-    prompt.say(f"\nSiguiente paso:\n  md-analyzer check -c {destination}\n"
+    prompt.ok(f"written {destination}")
+    prompt.say(f"\nNext step:\n  md-analyzer check -c {destination}\n"
                f"  md-analyzer run   -c {destination}")
     return destination
 
@@ -479,16 +479,16 @@ def _section(draft: _Draft, name: str, default: dict) -> dict:
 
 def _add_distance(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
     section = _section(draft, "distances", {"enabled": True, "pairs": []})
-    mode = prompt.choice("Tipo de distancia", [
-        ("1", "átomo–átomo", "un átomo en cada extremo (lo habitual)"),
-        ("2", "centro de masas", "entre los COM de dos grupos"),
-        ("3", "mínima", "la distancia más corta entre dos grupos (p. ej. el agua más cercana)"),
+    mode = prompt.choice("Distance type", [
+        ("1", "atom-atom", "one atom at each end (the usual case)"),
+        ("2", "centre of mass", "between the COM of two groups"),
+        ("3", "minimum", "shortest distance between two groups (e.g. the nearest water)"),
     ])
     single = mode == "1"
-    first = resolver.ask("  Átomo/grupo A", expect_single=single)
-    second = resolver.ask("  Átomo/grupo B", expect_single=single)
+    first = resolver.ask("  Atom/group A", expect_single=single)
+    second = resolver.ask("  Atom/group B", expect_single=single)
     default_name = f"d_{first.alias}_{second.alias}"[:40]
-    name = prompt.text("  Nombre", default=default_name)
+    name = prompt.text("  Name", default=default_name)
     entry = {"name": name, "atoms": [first.alias, second.alias],
              "label": f"{first.description.split(' (')[0]} – "
                       f"{second.description.split(' (')[0]}"}
@@ -496,27 +496,27 @@ def _add_distance(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None
         entry["mode"] = "com"
     elif mode == "3":
         entry["mode"] = "min"
-    threshold = prompt.number("  Umbral en Å (para el % de frames por debajo)")
+    threshold = prompt.number("  Threshold in A (for the % of frames below it)")
     if threshold is not None:
         entry["threshold"] = threshold
     section["pairs"].append(entry)
     draft.observables.append(name)
-    prompt.ok(f"añadida la distancia '{name}'")
+    prompt.ok(f"distance added: '{name}'")
 
 
 def _add_geometry(prompt: Prompt, resolver: AtomResolver, draft: _Draft,
                   key: str, n_atoms: int, prefix: str) -> None:
     section = _section(draft, key, {"enabled": True, "definitions": []})
-    atoms = [resolver.ask(f"  Átomo {i + 1} de {n_atoms}") for i in range(n_atoms)]
+    atoms = [resolver.ask(f"  Atom {i + 1} of {n_atoms}") for i in range(n_atoms)]
     default_name = f"{prefix}_{atoms[0].alias}"[:40]
-    name = prompt.text("  Nombre", default=default_name)
+    name = prompt.text("  Name", default=default_name)
     section["definitions"].append({
         "name": name,
         "atoms": [a.alias for a in atoms],
         "label": " – ".join(a.description.split(" (")[0] for a in atoms),
     })
     draft.observables.append(name)
-    prompt.ok(f"añadido '{name}'")
+    prompt.ok(f"added '{name}'")
 
 
 def _add_angle(prompt, resolver, draft) -> None:
@@ -531,99 +531,99 @@ def _add_hbond(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
     section = _section(draft, "hbonds", {
         "enabled": True, "d_a_cutoff": 3.5, "d_h_a_angle_cutoff": 150, "pairs": [],
     })
-    prompt.say("  El donor es el átomo pesado (N, O...), no el hidrógeno.")
-    donor = resolver.ask("  Donor (átomo pesado)")
-    acceptor = resolver.ask("  Aceptor", expect_single=False)
-    entry = {"name": prompt.text("  Nombre", default=f"hb_{donor.alias}_{acceptor.alias}"[:40]),
+    prompt.say("  The donor is the heavy atom (N, O...), not the hydrogen.")
+    donor = resolver.ask("  Donor (heavy atom)")
+    acceptor = resolver.ask("  Acceptor", expect_single=False)
+    entry = {"name": prompt.text("  Name", default=f"hb_{donor.alias}_{acceptor.alias}"[:40]),
              "donor": donor.alias, "acceptor": acceptor.alias}
-    if prompt.yes_no("  ¿Especificar el hidrógeno concreto? "
-                     "(por defecto se elige el mejor orientado)", default=False):
-        entry["hydrogen"] = resolver.ask("  Hidrógeno").alias
+    if prompt.yes_no("  Specify which hydrogen? "
+                     "(by default the best oriented one is used)", default=False):
+        entry["hydrogen"] = resolver.ask("  Hydrogen").alias
     section["pairs"].append(entry)
     draft.observables.append(entry["name"])
-    prompt.ok(f"añadido el puente de H '{entry['name']}'")
+    prompt.ok(f"hydrogen bond added: '{entry['name']}'")
 
 
 def _add_rmsd(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
     section = _section(draft, "rmsd", {"enabled": True, "ref_frame": 0, "groups": []})
-    prompt.say("  Selección a MEDIR (p. ej. backbone, resname LIG, o un grupo del sitio activo).")
-    measured = resolver.ask("  Selección medida", expect_single=False)
-    entry = {"name": prompt.text("  Nombre", default=measured.alias),
+    prompt.say("  Selection to MEASURE (e.g. backbone, resname LIG, or an active-site group).")
+    measured = resolver.ask("  Measured selection", expect_single=False)
+    entry = {"name": prompt.text("  Name", default=measured.alias),
              "selection": measured.alias}
-    if prompt.yes_no("  ¿Ajustar (fit) sobre una selección distinta? "
-                     "(RMSD local: ajustar en la proteína, medir el ligando)",
+    if prompt.yes_no("  Fit on a different selection? "
+                     "(local RMSD: fit on the protein, measure the ligand)",
                      default=False):
-        fit = resolver.ask("  Selección de ajuste", expect_single=False)
+        fit = resolver.ask("  Selection of ajuste", expect_single=False)
         entry["superposition"] = fit.alias
     section["groups"].append(entry)
     draft.observables.append(entry["name"])
-    prompt.ok(f"añadido el RMSD '{entry['name']}'")
+    prompt.ok(f"RMSD added: '{entry['name']}'")
 
 
 def _add_rmsf(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
-    selection = prompt.text("  Selección", default="protein and name CA")
+    selection = prompt.text("  Selection", default="protein and name CA")
     entry = {"enabled": True, "selection": selection, "align": True}
-    highlight = prompt.text("  Residuos a destacar (números separados por espacios)",
+    highlight = prompt.text("  Residues to highlight (numbers separated by spaces)",
                             default="", allow_empty=True)
     if highlight.strip():
         entry["highlight"] = [int(x) for x in highlight.split() if x.isdigit()]
     draft.analyses["rmsf"] = entry
-    prompt.ok("añadido el RMSF por residuo")
+    prompt.ok("per-residue RMSF added")
 
 
 def _add_rgyr(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
     section = _section(draft, "radius_of_gyration", {"enabled": True, "groups": []})
-    group = resolver.ask("  Selección", expect_single=False)
-    name = prompt.text("  Nombre", default=f"rg_{group.alias}"[:40])
+    group = resolver.ask("  Selection", expect_single=False)
+    name = prompt.text("  Name", default=f"rg_{group.alias}"[:40])
     section["groups"].append({"name": name, "selection": group.alias})
     draft.observables.append(name)
-    prompt.ok(f"añadido el radio de giro '{name}'")
+    prompt.ok(f"radius of gyration added: '{name}'")
 
 
 def _add_rdf(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
     section = _section(draft, "rdf", {"enabled": True, "pairs": []})
-    first = resolver.ask("  Selección central (g1)", expect_single=False)
-    second = resolver.ask("  Selección del entorno (g2, p. ej. el oxígeno del agua)",
+    first = resolver.ask("  Selection central (g1)", expect_single=False)
+    second = resolver.ask("  Environment selection (g2, e.g. the water oxygen)",
                           expect_single=False)
-    name = prompt.text("  Nombre", default=f"rdf_{first.alias}_{second.alias}"[:40])
-    rmax = prompt.number("  Radio máximo en Å", default=12.0)
+    name = prompt.text("  Name", default=f"rdf_{first.alias}_{second.alias}"[:40])
+    rmax = prompt.number("  Maximum radius in A", default=12.0)
     section["pairs"].append({"name": name, "g1": first.alias, "g2": second.alias,
                              "nbins": 120, "range": [0.0, float(rmax)]})
-    prompt.ok(f"añadida la RDF '{name}'")
+    prompt.ok(f"RDF added: '{name}'")
 
 
 def _add_clustering(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
-    group = resolver.ask("  Selección sobre la que agrupar "
-                         "(p. ej. el sitio activo sin hidrógenos)", expect_single=False)
-    n_clusters = int(prompt.number("  Número de clústeres", default=3, cast=int))
+    group = resolver.ask("  Selection to cluster on "
+                         "(e.g. the active site without hydrogens)", expect_single=False)
+    n_clusters = int(prompt.number("  Number of clusters", default=3, cast=int))
     draft.analyses["clustering"] = {
         "enabled": True, "selection": group.alias, "method": "hierarchical",
         "n_clusters": n_clusters, "write_structures": True,
     }
-    prompt.ok(f"añadido el clustering en {n_clusters} clústeres")
+    prompt.ok(f"clustering added with {n_clusters} clusters")
 
 
 def _add_map(prompt: Prompt, resolver: AtomResolver, draft: _Draft) -> None:
     if len(draft.observables) < 2:
-        prompt.warn("Necesitas al menos dos observables ya definidos "
-                    "(distancias, ángulos, RMSD...). Añádelos antes.")
+        prompt.warn("At least two observables must already be defined "
+                    "(distances, angles, RMSD...). Add them first.")
         return
-    prompt.say(f"  Observables disponibles: {', '.join(draft.observables)}")
+    prompt.say(f"  Available observables: {', '.join(draft.observables)}")
     section = _section(draft, "free_energy_maps",
                        {"enabled": True, "temperature": 300.0, "maps": []})
     while True:
-        x = prompt.text("  Eje X", default=draft.observables[0])
+        x = prompt.text("  X axis", default=draft.observables[0])
         if x in draft.observables:
             break
-        prompt.warn(f"'{x}' no está definido.")
+        prompt.warn(f"'{x}' is not defined.")
     while True:
-        y = prompt.text("  Eje Y", default=draft.observables[1])
+        y = prompt.text("  Y axis", default=draft.observables[1])
         if y in draft.observables:
             break
-        prompt.warn(f"'{y}' no está definido.")
-    name = prompt.text("  Nombre", default=f"fes_{x}_{y}"[:40])
-    free_energy = prompt.yes_no("  ¿Convertir a energía libre aparente (-kT ln P)?",
+        prompt.warn(f"'{y}' is not defined.")
+    name = prompt.text("  Name", default=f"fes_{x}_{y}"[:40])
+    free_energy = prompt.yes_no("  Convert to apparent free energy (-kT ln P)?",
                                 default=True)
     section["maps"].append({"name": name, "x": x, "y": y, "bins": 60,
                             "free_energy": free_energy})
-    prompt.ok(f"añadido el mapa '{name}'")
+    prompt.ok(f"map added: '{name}'")

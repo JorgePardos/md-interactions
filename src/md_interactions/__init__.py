@@ -40,6 +40,7 @@ from .exceptions import (
     MissingTopologyInfoError,
     SelectionError,
 )
+from .inputfile import load_input, parse_input, resolve_atom_spec
 from .io_utils import OutputPaths, prepare_output
 from .plotting import PALETTE, apply_style
 from .results import AnalysisResult
@@ -68,8 +69,11 @@ __all__ = [
     "apply_style",
     "load_config",
     "load_dataset",
+    "load_input",
     "load_system",
+    "parse_input",
     "read_table",
+    "resolve_atom_spec",
     "prepare_output",
     "run_analyses",
     "run_from_config",
