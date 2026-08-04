@@ -57,9 +57,27 @@ w_od1    ASP20:OD1    water   rmax=10
 ```
 
 ```bash
-md-analyzer check -c analysis.in     # validate every selection first
-md-analyzer run   -c analysis.in
+md-analyzer run -c analysis.in
 ```
+
+`run` validates the whole configuration against the topology **before reading a
+single frame**: every selection is resolved, and each 2D map is checked against
+the observables the run will actually produce. A typo costs a second instead of
+a full trajectory pass, and nothing is written when the check fails:
+
+```
+3 problem(s) found:
+
+  [FAIL] distance:d_typo -> "resname ARG and resid 414 and name HH99"
+         Matched 0 atoms.
+  [FAIL] free_energy_maps:map1.y -> "d_typoo"
+         'd_typoo' is not produced by any analysis; did you mean 'd_typo'?
+
+Nothing was run. Fix the configuration, or use --no-check to run anyway.
+```
+
+`md-analyzer check -c analysis.in` runs the same validation on its own and
+prints the full list of resolved selections with their atom counts.
 
 ### Writing atoms
 
