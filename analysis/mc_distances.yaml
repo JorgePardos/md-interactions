@@ -1,12 +1,12 @@
 # =============================================================================
-# Distribuciones de distancias del muestreo MC (tablas ya calculadas)
+# Distance distributions from the MC sampling (pre-computed tables)
 #
 #   md-analyzer check -c analysis/mc_distances.yaml
 #   md-analyzer run   -c analysis/mc_distances.yaml
 #
-# Ahora mismo solo está disponible rep1. Para las tres réplicas, descomenta el
-# bloque 'replicas' y comenta 'files': cada réplica conservará su identidad y se
-# generará la comparación de solapamiento entre ellas.
+# Only rep1 is available right now. For the three replicas, uncomment the
+# 'replicas' block and comment out 'files': each replica keeps its identity and
+# the overlap comparison between them is generated.
 # =============================================================================
 
 data:
@@ -19,7 +19,7 @@ data:
 
   unit: "Å"
   time:
-    dt: null                  # sin dt conocido -> el eje x son pasos MC
+    dt: null                  # no known dt -> the x axis is MC steps
     unit: ps
   frames:
     start: 0
@@ -43,7 +43,7 @@ data:
     "89:OE2-K55:NZ": E89_OE2-K55_NZ
     "114:OE3-K36:NZ": E114_OE3-K36_NZ
 
-  thresholds:                 # % de pasos con el puente formado
+  thresholds:                 # % of steps with the bridge formed
     D20_OD1-R32_HH12: 2.5
     D20_OD2-R32_HH22: 2.5
     D16_OD1-R32_HH21: 2.5
@@ -62,7 +62,7 @@ analyses:
     enabled: true
     temperature: 300.0
     maps:
-      - name: fes_OD1_OD2       # bidentado vs monodentado del puente salino
+      - name: fes_OD1_OD2       # bidentate vs monodentate salt bridge
         x: D20_OD1-R32_HH12
         y: D20_OD2-R32_HH22
         bins: 40
@@ -72,4 +72,4 @@ analyses:
 report:
   enabled: true
   formats: [markdown, html]
-  title: "MC — distribuciones de distancias"
+  title: "MC - distance distributions"

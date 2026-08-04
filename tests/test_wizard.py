@@ -56,7 +56,7 @@ def test_resid_at_atom_syntax(universe):
 def test_resname_and_number_is_checked(universe):
     resolver = AtomResolver(universe, ScriptedPrompt([]))
     assert resolver.resolve("SER1@OG").n_atoms == 1
-    with pytest.raises(MDInteractionsError, match="es SER, no ARG"):
+    with pytest.raises(MDInteractionsError, match="is SER, not ARG"):
         resolver.resolve("ARG1@OG")
 
 
@@ -76,30 +76,30 @@ def test_raw_mdanalysis_selection_still_works(universe):
 
 def test_unknown_selection_is_rejected(universe):
     resolver = AtomResolver(universe, ScriptedPrompt([]))
-    with pytest.raises(MDInteractionsError, match="no casa ningún átomo"):
+    with pytest.raises(MDInteractionsError, match="matches no atom"):
         resolver.resolve("999@XX")
-    with pytest.raises(MDInteractionsError, match="Formato esperado"):
+    with pytest.raises(MDInteractionsError, match="Expected format"):
         resolver.resolve("@OG")                 # missing residue part
-    with pytest.raises(MDInteractionsError, match="No entiendo el residuo"):
+    with pytest.raises(MDInteractionsError, match="Cannot read the residue"):
         resolver.resolve("-@OG")                # neither a number nor a name
 
 
 def test_ask_retries_until_valid_and_reports_atom_count(universe):
     prompt = ScriptedPrompt(["999@XX", "resname WAT and name O", "1@OG"])
     resolver = AtomResolver(universe, prompt)
-    resolved = resolver.ask("Átomo")           # rejects the first two
+    resolved = resolver.ask("Atom")           # rejects the first two
     assert resolved.alias == "SER1_OG"
-    assert "no casa ningún átomo" in prompt.text_output
-    assert "hace falta exactamente 1" in prompt.text_output
+    assert "matches no atom" in prompt.text_output
+    assert "exactly 1 is needed here" in prompt.text_output
 
 
 def test_query_helpers_do_not_consume_the_answer(universe):
     prompt = ScriptedPrompt(["?SER", "?1", "?ligandos", "1@OG"])
     resolver = AtomResolver(universe, prompt)
-    resolved = resolver.ask("Átomo")
+    resolved = resolver.ask("Atom")
     assert resolved.alias == "SER1_OG"
     out = prompt.text_output
-    assert "SER: 1 residuo" in out
+    assert "SER: 1 residue" in out
     assert "resid 1 = SER" in out
     assert "LIG" in out                        # listed as non-protein residue
 
@@ -168,11 +168,11 @@ def test_map_requires_two_observables(tmp_path, toy_files):
     ])
     run_wizard(topology=topology, output=tmp_path / "empty.yaml",
                input_fn=prompt._next, print_fn=prompt._record, force=True)
-    assert "Necesitas al menos dos observables" in prompt.text_output
+    assert "At least two observables" in prompt.text_output
 
 
 def test_missing_topology_is_reported(tmp_path):
     prompt = ScriptedPrompt([])
-    with pytest.raises(MDInteractionsError, match="No encuentro la topología"):
+    with pytest.raises(MDInteractionsError, match="Topology not found"):
         run_wizard(topology=tmp_path / "nope.prmtop", output=tmp_path / "x.yaml",
                    input_fn=prompt._next, print_fn=prompt._record)

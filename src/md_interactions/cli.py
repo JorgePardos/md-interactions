@@ -130,6 +130,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 
 
 def _load(args: argparse.Namespace) -> Config:
+    """Load the configuration, accepting both the ``.in`` and YAML formats."""
     overrides = {
         "topology": args.top,
         "trajectory": args.traj,
@@ -140,6 +141,14 @@ def _load(args: argparse.Namespace) -> Config:
         "formats": args.formats,
     }
     overrides = {k: v for k, v in overrides.items() if v is not None}
+
+    if Path(args.config).suffix.lower() in {".in", ".inp", ".txt"}:
+        from .inputfile import load_input
+
+        if overrides:
+            print("[md_interactions] note: command-line overrides are only "
+                  "applied to YAML configurations; edit the input file instead.")
+        return load_input(args.config)
     return load_config(args.config, overrides=overrides or None)
 
 
@@ -352,7 +361,7 @@ def _cmd_wizard(args: argparse.Namespace) -> int:
         run_wizard(topology=args.top, trajectory=args.traj, output=args.output,
                    force=args.force)
     except (KeyboardInterrupt, EOFError):
-        print("\nAsistente cancelado; no se ha escrito nada.", file=sys.stderr)
+        print("\nWizard cancelled; nothing was written.", file=sys.stderr)
         return 130
     return 0
 

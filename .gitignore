@@ -15,6 +15,8 @@ htmlcov/
 
 # Analysis output
 results/
+results_*/
+analysis/results_*/
 examples/demo_data/
 examples/demo_results/
 

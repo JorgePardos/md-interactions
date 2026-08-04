@@ -1,7 +1,7 @@
-"""Demostración completa sin necesidad de datos propios.
+"""A complete demonstration that needs no data of your own.
 
-Genera un sistema de juguete (tríada Ser-His-Asp + ligando + aguas), lo escribe
-en disco y lanza todos los análisis, dejando el resultado en ``demo_results/``.
+Builds a toy system (Ser-His-Asp triad + ligand + waters), writes it to disk
+and runs every analysis, leaving the output in ``demo_results/``.
 
     python examples/toy_demo.py
 """
@@ -19,7 +19,7 @@ WORKDIR = HERE / "demo_data"
 
 def main() -> None:
     topology, trajectory = write_toy_system(WORKDIR, n_frames=200)
-    print(f"Sistema de juguete escrito en {WORKDIR}")
+    print(f"Toy system written to {WORKDIR}")
 
     config = mdi.Config.from_dict({
         "system": {
@@ -44,7 +44,7 @@ def main() -> None:
             ]},
             "angles": {"definitions": [
                 {"name": "a_attack", "atoms": ["SER_OG", "LIG_C1", "LIG_O1"],
-                 "label": "OG–C1=O1 (Bürgi–Dunitz)"},
+                 "label": "OG-C1=O1 (Burgi-Dunitz)"},
             ]},
             "rmsd": {"groups": [
                 {"name": "backbone", "selection": "backbone"},
@@ -71,13 +71,13 @@ def main() -> None:
             "clustering": {"enabled": True, "selection": "protein and not name H*",
                            "n_clusters": 3},
         },
-        "report": {"enabled": True, "title": "Demo: sistema de juguete"},
+        "report": {"enabled": True, "title": "Demo: toy system"},
     })
 
     output = mdi.run_analyses(config)
-    print("\nResumen:")
+    print("\nSummary:")
     print(output.summary.to_string(index=False))
-    print(f"\nInforme: {output.paths.root / 'report.html'}")
+    print(f"\nReport: {output.paths.root / 'report.html'}")
 
 
 if __name__ == "__main__":

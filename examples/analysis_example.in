@@ -1,0 +1,76 @@
+# =============================================================================
+# md_interactions - compact input file
+#
+#   md-analyzer check -c analysis.in
+#   md-analyzer run   -c analysis.in
+#
+# Anything after # or ; is a comment. Sections are [name]. No indentation and
+# no quoting rules to remember.
+#
+# Atoms can be written in any of these ways:
+#   ASP20:OD1     residue name + number, atom name
+#   20:OD1        residue number and atom name
+#   TRH:O2P       by residue name (any residue so called)
+#   :20@OD1       cpptraj mask
+#   @1123         atom number, 1-based, as in cpptraj/VMD
+#   ASP20:OD1,OD2 several atoms of the same residue
+#   water         keyword (also: protein, backbone, heavy, ligand)
+#   {resid 20 and name OD1}   a literal MDAnalysis selection
+# =============================================================================
+
+topology    system.prmtop
+trajectory  prod.nc
+# replicas keep their identity instead of being pooled:
+# replica   rep1  rep1/prod.nc
+# replica   rep2  rep2/prod.nc
+
+time        0.1 ps          # time between saved frames; 'auto' reads it from the file
+stride      1
+output      results
+formats     png pdf
+
+# Optional named shortcuts, usable everywhere below
+[selections]
+NUC     ASP20:OD1
+LIG_C   TRH453:C1
+SITE    {byres (protein and around 6 resname TRH)}
+
+[distances]
+# name      atom A        atom B        options
+d_nuc       NUC           LIG_C         threshold=3.5
+d_acid      ASP20:OD2     ARG414:HH22   threshold=2.5
+d_by_index  @1123         @4567
+d_water     TRH453:O2P    water         mode=min
+
+[angles]
+a_attack    ASP20:OD1     TRH453:C1     TRH453:O1
+
+[dihedrals]
+chi1        SER160:N      SER160:CA     SER160:CB     SER160:OG
+
+# RMSD and RMSF run by default. This section only customises them;
+# write 'rmsd off' (or a line 'off' inside the section) to disable.
+[rmsd]
+backbone    backbone
+ligand      TRH:*         fit=backbone
+
+[rmsf]
+selection   protein and name CA
+highlight   20 414
+
+# Solvation. 'water' is the oxygen of every water molecule.
+[rdf]
+# name       centre         partner   options
+w_od1        ASP20:OD1      water     rmax=10 bins=100
+w_residue    {resid 20}     water     rmax=12 by=residue   # around the whole residue
+
+[hbonds]
+hb_triad     donor=ARG414:NH1   acceptor=ASP20:OD1
+auto         {resname TRH}      protein
+
+[fes]
+map1         x=d_nuc  y=d_acid  bins=60
+
+[clustering]
+selection    SITE
+n            3

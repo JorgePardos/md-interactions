@@ -11,17 +11,17 @@
 
 <header>
   <h1>md_interactions</h1>
-  <div id="system-info" class="muted">cargando sistema...</div>
+  <div id="system-info" class="muted">loading system...</div>
 </header>
 
 <main>
   <section id="viewer-panel">
     <div id="viewer"></div>
     <div id="viewer-controls">
-      <label><input type="checkbox" id="show-waters"> aguas</label>
-      <label><input type="checkbox" id="show-sidechains" checked> cadenas laterales</label>
-      <button id="reset-view" class="ghost">centrar</button>
-      <span id="pick-status" class="muted">pincha átomos en la estructura</span>
+      <label><input type="checkbox" id="show-waters"> waters</label>
+      <label><input type="checkbox" id="show-sidechains" checked> side chains</label>
+      <button id="reset-view" class="ghost">recentre</button>
+      <span id="pick-status" class="muted">click atoms in the structure</span>
     </div>
     <div id="picked"></div>
   </section>
@@ -29,56 +29,56 @@
   <section id="side-panel">
 
     <div class="card">
-      <h2>1 · Detectar qué hay</h2>
-      <p class="muted small">Encuentra las interacciones reales en la trayectoria,
-        sin que tengas que saberte la numeración.</p>
+      <h2>1 &middot; Detect what is there</h2>
+      <p class="muted small">Finds the interactions that are actually present in the trajectory,
+        so you do not need to know the numbering.</p>
       <div class="row">
-        <label>región
-          <input type="text" id="region" placeholder="ligando (por defecto)">
+        <label>region
+          <input type="text" id="region" placeholder="ligand (default)">
         </label>
-        <label style="max-width:5.5rem">corte Å
+        <label style="max-width:5.5rem">cutoff A
           <input type="number" id="cutoff" value="4.0" step="0.5" min="2">
         </label>
       </div>
       <div class="row">
-        <button id="detect-contacts">contactos polares</button>
-        <button id="detect-changes" class="secondary">cambios químicos</button>
+        <button id="detect-contacts">polar contacts</button>
+        <button id="detect-changes" class="secondary">chemical changes</button>
       </div>
       <div id="detect-output"></div>
     </div>
 
     <div class="card">
-      <h2>2 · Qué medir</h2>
+      <h2>2 &middot; What to measure</h2>
       <p class="muted small" id="measure-hint">
-        Pincha 2 átomos para una distancia, 3 para un ángulo, 4 para un diedro.
+        Click 2 atoms for a distance, 3 for an angle, 4 for a dihedral.
       </p>
       <div class="row">
-        <button id="add-interaction" disabled>añadir</button>
-        <button id="clear-picks" class="ghost">limpiar selección</button>
+        <button id="add-interaction" disabled>add</button>
+        <button id="clear-picks" class="ghost">clear selection</button>
       </div>
       <table id="interactions">
-        <thead><tr><th>nombre</th><th>tipo</th><th>átomos</th><th>umbral</th><th></th></tr></thead>
+        <thead><tr><th>name</th><th>type</th><th>atoms</th><th>threshold</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
-      <p class="muted small" id="empty-list">Aún no has añadido nada.</p>
+      <p class="muted small" id="empty-list">Nothing added yet.</p>
     </div>
 
     <div class="card">
-      <h2>3 · Ejecutar</h2>
+      <h2>3 &middot; Run</h2>
       <div class="row">
         <label style="max-width:6rem">stride
           <input type="number" id="stride" value="1" min="1">
         </label>
-        <label style="max-width:7rem">unidad
+        <label style="max-width:7rem">unit
           <select id="time-unit"><option>ps</option><option>ns</option><option>frame</option></select>
         </label>
-        <button id="run" disabled>analizar</button>
+        <button id="run" disabled>analyse</button>
       </div>
       <div id="run-status"></div>
     </div>
 
     <div class="card" id="results-card" hidden>
-      <h2>4 · Resultados</h2>
+      <h2>4 &middot; Results</h2>
       <div id="results"></div>
     </div>
 
