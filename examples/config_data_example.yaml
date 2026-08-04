@@ -1,0 +1,64 @@
+# =============================================================================
+# md_interactions - analysis of PRE-COMPUTED tables (no topology, no trajectory)
+#
+#   md-analyzer check -c config_data.yaml
+#   md-analyzer run   -c config_data.yaml
+#
+# Input: cpptraj-style files (one row per frame), e.g.
+#     #Frame     D20:OD1-R32:HH12   D20:OD2-R32:HH22
+#          1               2.5962             2.3542
+# Useful for Monte Carlo runs, for data measured elsewhere, or to re-plot old
+# results in the same style as the rest of the figures.
+# =============================================================================
+
+data:
+  # Independent runs: keep them apart instead of pooling them blindly.
+  replicas:
+    rep1: [dist_rep1.dat]
+    rep2: [dist_rep2.dat]
+    rep3: [dist_rep3.dat]
+  # ...or a single set of files analysed together:
+  #   files: [dist_all.dat]
+
+  unit: "Å"                   # unit of the columns, used in the axis labels
+  time:
+    dt: null                  # time between rows; null -> x axis is the frame
+    unit: ps
+  frames:
+    start: 0
+    stop: null
+    stride: 1
+
+  columns: []                 # [] = every column; or a subset by name
+  labels:                     # optional renaming (the new name is used everywhere)
+    "D20:OD1-R32:HH12": d_saltbridge_OD1
+  thresholds:                 # optional: % of frames below the value
+    d_saltbridge_OD1: 2.5
+
+  bins: 30
+  kde: true
+  facet: true                 # one multi-panel figure with every column
+  normalization: density      # density (Å⁻¹) | percent | counts
+  timeseries: true            # also plot each column against time/frame
+
+output:
+  directory: results
+  formats: [png, pdf]
+  dpi: 300
+
+analyses:
+  free_energy_maps:           # 2D maps work on the columns of the table
+    enabled: true
+    temperature: 300.0
+    maps:
+      - name: fes_od1_od2
+        x: d_saltbridge_OD1
+        y: "D20:OD2-R32:HH22"
+        bins: 40
+        free_energy: true
+        max_energy: 3.0
+
+report:
+  enabled: true
+  formats: [markdown, html]
+  title: "Distance distributions"

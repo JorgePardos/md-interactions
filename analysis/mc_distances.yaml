@@ -1,0 +1,75 @@
+# =============================================================================
+# Distribuciones de distancias del muestreo MC (tablas ya calculadas)
+#
+#   md-analyzer check -c analysis/mc_distances.yaml
+#   md-analyzer run   -c analysis/mc_distances.yaml
+#
+# Ahora mismo solo está disponible rep1. Para las tres réplicas, descomenta el
+# bloque 'replicas' y comenta 'files': cada réplica conservará su identidad y se
+# generará la comparación de solapamiento entre ellas.
+# =============================================================================
+
+data:
+  files:
+    - "C:/Users/jpard/Downloads/dist_rep1.dat"
+  # replicas:
+  #   rep1: ["C:/Users/jpard/Downloads/dist_rep1.dat"]
+  #   rep2: ["C:/Users/jpard/Downloads/dist_rep2.dat"]
+  #   rep3: ["C:/Users/jpard/Downloads/dist_rep3.dat"]
+
+  unit: "Å"
+  time:
+    dt: null                  # sin dt conocido -> el eje x son pasos MC
+    unit: ps
+  frames:
+    start: 0
+    stop: null
+    stride: 1
+
+  bins: 30
+  kde: true
+  facet: true
+  normalization: density
+  timeseries: true
+
+  labels:
+    "D20:OD1-R32:HH12": D20_OD1-R32_HH12
+    "D20:OD2-R32:HH22": D20_OD2-R32_HH22
+    "D16:OD1-R32:HH21": D16_OD1-R32_HH21
+    "Y115:OH-R32:HH11": Y115_OH-R32_HH11
+    "TRH:O2P-S272:OG": TRH_O2P-S272_OG
+    "TRH:O4P-R265:HH21": TRH_O4P-R265_HH21
+    "TRH:O3P-R265:HE": TRH_O3P-R265_HE
+    "89:OE2-K55:NZ": E89_OE2-K55_NZ
+    "114:OE3-K36:NZ": E114_OE3-K36_NZ
+
+  thresholds:                 # % de pasos con el puente formado
+    D20_OD1-R32_HH12: 2.5
+    D20_OD2-R32_HH22: 2.5
+    D16_OD1-R32_HH21: 2.5
+    Y115_OH-R32_HH11: 2.5
+    TRH_O2P-S272_OG: 3.5
+    TRH_O4P-R265_HH21: 2.5
+    TRH_O3P-R265_HE: 2.5
+
+output:
+  directory: results_mc_distances
+  formats: [png, pdf]
+  dpi: 300
+
+analyses:
+  free_energy_maps:
+    enabled: true
+    temperature: 300.0
+    maps:
+      - name: fes_OD1_OD2       # bidentado vs monodentado del puente salino
+        x: D20_OD1-R32_HH12
+        y: D20_OD2-R32_HH22
+        bins: 40
+        free_energy: true
+        max_energy: 3.0
+
+report:
+  enabled: true
+  formats: [markdown, html]
+  title: "MC — distribuciones de distancias"

@@ -1,0 +1,235 @@
+# =============================================================================
+# Asp20 ··· Arg414 y el destino del protón HH12
+#
+# HALLAZGO PREVIO (ver README del análisis): en esta trayectoria el átomo
+# ARG414:HH12 YA NO está en la arginina — está covalentemente unido a
+# WAT24244:O en el 100 % de los frames (0.97 Å). La conectividad del prmtop
+# describe el estado inicial, no el de esta producción reactiva.
+# Por eso aquí se miden (a) lo que se pidió literalmente, (b) la identidad
+# real del protón y (c) la interacción que sí existe: puente de agua.
+#
+#   md-analyzer run -c analysis/asp20_arg414.yaml
+# =============================================================================
+
+system:
+  topology: ../tests/data/earp_ok.prmtop
+  trajectory:
+    - ../tests/data/prod.nc
+  time:
+    dt: null            # 0.1 ps entre frames, leído de la trayectoria
+    unit: ps
+  frames:
+    start: 0
+    stop: null
+    stride: 1
+  align:
+    enabled: false
+
+output:
+  directory: results_asp20_arg414
+  formats: [png, pdf]
+  dpi: 300
+
+selections:
+  # --- Asp20 (carboxilato) ---
+  ASP20_OD1:   "resid 20 and name OD1"
+  ASP20_OD2:   "resid 20 and name OD2"
+  ASP20_CG:    "resid 20 and name CG"
+  ASP20_COO:   "resid 20 and name OD1 OD2"
+  # --- Arg414 (guanidinio) ---
+  ARG414_HH12: "resid 414 and name HH12"     # ¡ahora es un H del agua 24244!
+  ARG414_NH1:  "resid 414 and name NH1"
+  ARG414_NH2:  "resid 414 and name NH2"
+  ARG414_NE:   "resid 414 and name NE"
+  ARG414_CZ:   "resid 414 and name CZ"
+  ARG414_GUAN: "resid 414 and name NE NH1 NH2"
+  # --- agua puente y entorno ---
+  W_O:         "resid 24244 and name O"
+  W_H2:        "resid 24244 and name H2"
+  TYR115_OH:   "resid 115 and name OH"
+  TYR115_HH:   "resid 115 and name HH"
+  ASP16_O:     "resid 16 and name O"
+  TRH_O4P:     "resid 453 and name O4P"
+  TRH_C1:      "resid 453 and name C1"
+  TRH_O1:      "resid 453 and name O1"
+  WATER_O:     "resname WAT and name O"
+  PAIR_SIDECHAINS: "(resid 20 and name CB CG OD1 OD2) or (resid 414 and name CD NE CZ NH1 NH2)"
+
+analyses:
+
+  distances:
+    enabled: true
+    bins: 60
+    kde: true
+    pbc: true
+    pairs:
+      # --- lo preguntado, literal ---
+      - name: d_OD1_HH12
+        atoms: [ASP20_OD1, ARG414_HH12]
+        label: "Asp20 OD1 ··· HH12"
+        threshold: 3.5
+      - name: d_OD2_HH12
+        atoms: [ASP20_OD2, ARG414_HH12]
+        label: "Asp20 OD2 ··· HH12"
+        threshold: 2.5
+      # --- ¿de quién es el protón? ---
+      - name: d_HH12_NH1
+        atoms: [ARG414_HH12, ARG414_NH1]
+        label: "HH12 – Arg414 NH1 (enlace original)"
+        threshold: 1.2
+      - name: d_HH12_Ow
+        atoms: [ARG414_HH12, W_O]
+        label: "HH12 – WAT24244 O (enlace actual)"
+        threshold: 1.2
+      # --- par iónico Asp20/Arg414 ---
+      - name: d_saltbridge
+        atoms: [ASP20_COO, ARG414_GUAN]
+        mode: min
+        label: "min d(COO⁻ ··· guanidinio)"
+        threshold: 4.0
+      - name: d_OD2_NH2
+        atoms: [ASP20_OD2, ARG414_NH2]
+        label: "Asp20 OD2 ··· Arg414 NH2"
+        threshold: 3.5
+      - name: d_OD1_NH1
+        atoms: [ASP20_OD1, ARG414_NH1]
+        label: "Asp20 OD1 ··· Arg414 NH1"
+        threshold: 3.5
+      - name: d_CG_CZ
+        atoms: [ASP20_CG, ARG414_CZ]
+        label: "Asp20 CG ··· Arg414 CZ"
+      # --- la interacción que sí existe ---
+      - name: d_Ow_OD2
+        atoms: [W_O, ASP20_OD2]
+        label: "WAT24244 O ··· Asp20 OD2"
+        threshold: 3.5
+      - name: d_OD1_TYR115
+        atoms: [ASP20_OD1, TYR115_OH]
+        label: "Asp20 OD1 ··· Tyr115 OH"
+        threshold: 3.5
+      - name: d_OD1_water
+        atoms: [ASP20_OD1, WATER_O]
+        mode: min
+        label: "Asp20 OD1 ··· agua más cercana"
+        threshold: 3.2
+      # --- contexto reactivo del ligando ---
+      - name: d_TRH_C1_O1
+        atoms: [TRH_C1, TRH_O1]
+        label: "TRH453 C1–O1 (enlace del prmtop)"
+        threshold: 1.8
+
+  angles:
+    enabled: true
+    definitions:
+      - name: a_Ow_H2_OD2
+        atoms: [W_O, W_H2, ASP20_OD2]
+        label: "O–H2···OD2 (puente de agua)"
+      - name: a_Ow_HH12_OD2
+        atoms: [W_O, ARG414_HH12, ASP20_OD2]
+        label: "O–HH12···OD2 (orientación del protón)"
+
+  rmsd:
+    enabled: true
+    ref_frame: 0
+    groups:
+      - name: backbone
+        selection: "backbone"
+      - name: pair_sidechains
+        selection: "PAIR_SIDECHAINS"
+        superposition: "backbone"
+
+  rmsf:
+    enabled: true
+    selection: "protein and name CA"
+    align: true
+    highlight: [16, 20, 115, 414]
+
+  hbonds:
+    enabled: true
+    d_a_cutoff: 3.5
+    d_h_a_angle_cutoff: 150
+    pairs:
+      # como se pidió: donor Arg414 NH1 con su H nominal HH12 (control)
+      - name: hb_NH1_HH12_OD1
+        donor: ARG414_NH1
+        hydrogen: ARG414_HH12
+        acceptor: ASP20_OD1
+        label: "Arg414 NH1–HH12 ··· Asp20 OD1 (definición nominal)"
+      # los que existen de verdad
+      - name: hb_water_OD2
+        donor: W_O
+        hydrogen: W_H2
+        acceptor: ASP20_OD2
+        label: "WAT24244 O–H2 ··· Asp20 OD2"
+      - name: hb_HH12_OD2
+        donor: W_O
+        hydrogen: ARG414_HH12
+        acceptor: ASP20_OD2
+        label: "WAT24244 O–HH12 ··· Asp20 OD2"
+      - name: hb_HH12_ASP16
+        donor: W_O
+        hydrogen: ARG414_HH12
+        acceptor: ASP16_O
+        label: "WAT24244 O–HH12 ··· Asp16 O"
+      - name: hb_TYR115_OD1
+        donor: TYR115_OH
+        hydrogen: TYR115_HH
+        acceptor: ASP20_OD1
+        label: "Tyr115 OH–HH ··· Asp20 OD1"
+    auto: true
+    auto_between:
+      - ["resid 20", "resid 414"]     # ¿hay ALGÚN puente directo Asp20–Arg414?
+      - ["resid 20", "protein"]       # todos los socios proteicos de Asp20
+    min_occupancy: 1.0
+    max_reported: 25
+
+  free_energy_maps:
+    enabled: true
+    temperature: 300.0
+    maps:
+      - name: fes_water_bridge        # geometría del puente de agua
+        x: d_Ow_OD2
+        y: a_Ow_H2_OD2
+        bins: 60
+        free_energy: true
+        max_energy: 3.0
+      - name: fes_proton_position     # el protón: ¿arginina o agua?
+        x: d_HH12_Ow
+        y: d_HH12_NH1
+        bins: 60
+        free_energy: true
+        max_energy: 3.0
+      - name: fes_saltbridge_water    # par iónico vs solvatación
+        x: d_saltbridge
+        y: d_OD1_water
+        bins: 60
+        free_energy: true
+        max_energy: 3.0
+
+  rdf:
+    enabled: true
+    pairs:
+      - name: rdf_OD1_water
+        g1: ASP20_OD1
+        g2: WATER_O
+        nbins: 120
+        range: [0.0, 12.0]
+      - name: rdf_OD2_water
+        g1: ASP20_OD2
+        g2: WATER_O
+        nbins: 120
+        range: [0.0, 12.0]
+
+  clustering:
+    enabled: true
+    selection: "PAIR_SIDECHAINS"
+    method: hierarchical
+    n_clusters: 3
+    linkage: average
+    align: true
+    write_structures: true
+
+report:
+  enabled: true
+  formats: [markdown, html]
+  title: "Asp20 ··· Arg414: par iónico separado por agua y destino del protón HH12"

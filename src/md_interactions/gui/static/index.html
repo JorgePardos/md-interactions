@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>md_interactions</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/3Dmol-min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>md_interactions</h1>
+  <div id="system-info" class="muted">cargando sistema...</div>
+</header>
+
+<main>
+  <section id="viewer-panel">
+    <div id="viewer"></div>
+    <div id="viewer-controls">
+      <label><input type="checkbox" id="show-waters"> aguas</label>
+      <label><input type="checkbox" id="show-sidechains" checked> cadenas laterales</label>
+      <button id="reset-view" class="ghost">centrar</button>
+      <span id="pick-status" class="muted">pincha átomos en la estructura</span>
+    </div>
+    <div id="picked"></div>
+  </section>
+
+  <section id="side-panel">
+
+    <div class="card">
+      <h2>1 · Detectar qué hay</h2>
+      <p class="muted small">Encuentra las interacciones reales en la trayectoria,
+        sin que tengas que saberte la numeración.</p>
+      <div class="row">
+        <label>región
+          <input type="text" id="region" placeholder="ligando (por defecto)">
+        </label>
+        <label style="max-width:5.5rem">corte Å
+          <input type="number" id="cutoff" value="4.0" step="0.5" min="2">
+        </label>
+      </div>
+      <div class="row">
+        <button id="detect-contacts">contactos polares</button>
+        <button id="detect-changes" class="secondary">cambios químicos</button>
+      </div>
+      <div id="detect-output"></div>
+    </div>
+
+    <div class="card">
+      <h2>2 · Qué medir</h2>
+      <p class="muted small" id="measure-hint">
+        Pincha 2 átomos para una distancia, 3 para un ángulo, 4 para un diedro.
+      </p>
+      <div class="row">
+        <button id="add-interaction" disabled>añadir</button>
+        <button id="clear-picks" class="ghost">limpiar selección</button>
+      </div>
+      <table id="interactions">
+        <thead><tr><th>nombre</th><th>tipo</th><th>átomos</th><th>umbral</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="muted small" id="empty-list">Aún no has añadido nada.</p>
+    </div>
+
+    <div class="card">
+      <h2>3 · Ejecutar</h2>
+      <div class="row">
+        <label style="max-width:6rem">stride
+          <input type="number" id="stride" value="1" min="1">
+        </label>
+        <label style="max-width:7rem">unidad
+          <select id="time-unit"><option>ps</option><option>ns</option><option>frame</option></select>
+        </label>
+        <button id="run" disabled>analizar</button>
+      </div>
+      <div id="run-status"></div>
+    </div>
+
+    <div class="card" id="results-card" hidden>
+      <h2>4 · Resultados</h2>
+      <div id="results"></div>
+    </div>
+
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

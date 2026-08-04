@@ -1,0 +1,170 @@
+# =============================================================================
+# Distancias clave — sistema QMMM_preReactive (3 réplicas)
+#
+#   md-analyzer check -c analysis/qmmm_distances.yaml   <- EJECUTA ESTO PRIMERO
+#   md-analyzer run   -c analysis/qmmm_distances.yaml
+#
+# Traduce a selecciones MDAnalysis las 11 distancias de mc_distances.yaml,
+# ahora midiéndolas directamente sobre la trayectoria (no sobre el .dat de
+# cpptraj), con R32 -> resid 414 según se indicó.
+#
+# IMPORTANTE - LEE ESTO ANTES DE LANZAR EL RUN:
+# He verificado la numeración de residuos contra una copia de
+# earp_efp_tdp-r_ok.prmtop que tengo localizada en otra carpeta (Metadyn/),
+# no exactamente la que me diste en QMMM_preReactive/. Con esa copia:
+#
+#   CONFIRMADOS (mismo resid, tipo de residuo y átomos correctos):
+#     20 ASP (OD1/OD2), 16 ASP (OD1), 115 TYR (OH/HH), 272 SER (OG/HG),
+#     89 GLU (OE1/OE2), 249 PHE, 255 PHE, y 414 ARG (HH11/HH12/HH21/HH22,
+#     NE/HE, NH1/NH2) tal como confirmaste para R32->R414.
+#
+#   NO CONFIRMADOS - en esa copia el resid no es el tipo esperado:
+#     - resid 265 es ALA, no ARG  (hay un ARG en 268, 3 posiciones más allá)
+#     - resid 55  es ASP, no LYS  (hay un ARG en 50, no un LYS cercano)
+#     - resid 36  es GLY, no LYS  (hay un ARG en 33, no un LYS cercano)
+#     - resid 114 es GLU (correcto), pero el átomo "OE3" no existe en Glu
+#       (solo OE1/OE2) -> uso mode:min sobre OE1 y OE2
+#
+#   La hipótesis más probable es que la copia que usé para verificar (de la
+#   carpeta Metadyn/) tiene una inserción/deleción de unos pocos residuos en
+#   torno a esa región respecto al .prmtop real de QMMM_preReactive/, y por
+#   tanto en TU topología los resid 265/55/36 sí pueden ser correctos.
+#   NO los he corregido a ciegas (podría acertar el resid equivocado, que es
+#   peor que fallar la selección). Están tal cual como en mc_distances.yaml.
+#
+#   Ejecuta 'md-analyzer check' primero: si alguno de esos tres falla o
+#   encuentra un residuo del tipo equivocado, dímelo o ajusta el resid aquí.
+# =============================================================================
+
+system:
+  topology: ../QMMM_preReactive/QMMM_restricted/earp_efp_tdp-r_ok.prmtop
+  replicas:
+    rep1: [../QMMM_preReactive/QMMM_restricted/qmmm-100ps.nc]
+    rep2: [../QMMM_preReactive/QMMM_restricted2/qmmm-100ps.nc]
+    rep3: [../QMMM_preReactive/QMMM_restricted3/qmmm-100ps.nc]
+  time:
+    dt: null                  # se lee de la trayectoria
+    unit: ps
+  frames:
+    start: 0
+    stop: null
+    stride: 1                 # sube esto si las 3x100 ps pesan demasiado
+  align:
+    enabled: false             # las distancias no lo necesitan
+
+output:
+  directory: results_qmmm_distances
+  formats: [png, pdf]
+  dpi: 300
+
+selections:
+  # -- confirmados --
+  D20_OD1:   "resid 20 and name OD1"
+  D20_OD2:   "resid 20 and name OD2"
+  D16_OD1:   "resid 16 and name OD1"
+  Y115_OH:   "resid 115 and name OH"
+  S272_OG:   "resid 272 and name OG"
+  E89_OE2:   "resid 89 and name OE2"
+  R414_HH11: "resid 414 and name HH11"
+  R414_HH12: "resid 414 and name HH12"
+  R414_HH21: "resid 414 and name HH21"
+  R414_HH22: "resid 414 and name HH22"
+  TRH_O2P:   "resname TRH and name O2P"
+  TRH_O3P:   "resname TRH and name O3P"
+  TRH_O4P:   "resname TRH and name O4P"
+  TRH_ALL:   "resname TRH"
+  PHE249_RING: "resid 249 and name CG CD1 CD2 CE1 CE2 CZ"
+  PHE255_RING: "resid 255 and name CG CD1 CD2 CE1 CE2 CZ"
+
+  # -- SIN CONFIRMAR: verifica con 'check' antes de fiarte de estas --
+  R265_HH21: "resid 265 and name HH21"
+  R265_HE:   "resid 265 and name HE"
+  K55_NZ:    "resid 55 and name NZ"
+  E114_OE:   "resid 114 and name OE1 OE2"   # "OE3" del .dat no existe; min de las dos
+  K36_NZ:    "resid 36 and name NZ"
+
+analyses:
+
+  distances:
+    enabled: true
+    bins: 60
+    kde: true
+    pbc: true
+    facet: true                # una sola figura multipanel, como en mc_distances
+    normalization: density
+    pairs:
+      - name: d_D20OD1_R414HH12
+        atoms: [D20_OD1, R414_HH12]
+        label: "D20:OD1 - R414:HH12"
+        threshold: 2.5
+
+      - name: d_D20OD2_R414HH22
+        atoms: [D20_OD2, R414_HH22]
+        label: "D20:OD2 - R414:HH22"
+        threshold: 2.5
+
+      - name: d_D16OD1_R414HH21
+        atoms: [D16_OD1, R414_HH21]
+        label: "D16:OD1 - R414:HH21"
+        threshold: 2.5
+
+      - name: d_Y115OH_R414HH11
+        atoms: [Y115_OH, R414_HH11]
+        label: "Y115:OH - R414:HH11"
+        threshold: 2.5
+
+      - name: d_TRH_O2P_S272OG
+        atoms: [TRH_O2P, S272_OG]
+        label: "TRH:O2P - S272:OG"
+        threshold: 3.5
+
+      - name: d_E89OE2_K55NZ
+        atoms: [E89_OE2, K55_NZ]
+        label: "89:OE2 - K55:NZ"          # K55 sin confirmar, ver aviso arriba
+
+      - name: d_E114OE_K36NZ
+        atoms: [E114_OE, K36_NZ]
+        mode: min
+        label: "114:OE1/OE2 - K36:NZ"     # 114 y K36 sin confirmar, ver aviso arriba
+
+      # -- sin confirmar (resid 265, ver aviso arriba) --
+      - name: d_TRH_O4P_R265HH21
+        atoms: [TRH_O4P, R265_HH21]
+        label: "TRH:O4P - R265:HH21"
+        threshold: 2.5
+
+      - name: d_TRH_O3P_R265HE
+        atoms: [TRH_O3P, R265_HE]
+        label: "TRH:O3P - R265:HE"
+        threshold: 2.5
+
+      # -- distancias ligando-Phe: no sé cómo se definieron en el .dat
+      # original (¿COM-COM del residuo completo? ¿centroide del anillo?).
+      # Aquí uso centro de masas del ligando completo vs. centroide del
+      # anillo aromático de cada Phe; ajusta si tu script de cpptraj usaba
+      # otra definición.
+      - name: d_TRH_F249
+        atoms: [TRH_ALL, PHE249_RING]
+        mode: com
+        label: "TRH (COM) - F249 (anillo)"
+
+      - name: d_TRH_F255
+        atoms: [TRH_ALL, PHE255_RING]
+        mode: com
+        label: "TRH (COM) - F255 (anillo)"
+
+  free_energy_maps:
+    enabled: true
+    temperature: 300.0
+    maps:
+      - name: fes_OD1_OD2         # bidentado vs. monodentado del puente salino
+        x: d_D20OD1_R414HH12
+        y: d_D20OD2_R414HH22
+        bins: 60
+        free_energy: true
+        max_energy: 3.0
+
+report:
+  enabled: true
+  formats: [markdown, html]
+  title: "QMMM preReactive — distancias clave (3 réplicas)"

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# pytest / coverage
+.pytest_cache/
+.claude
+.coverage
+htmlcov/
+
+# Analysis output
+results/
+examples/demo_data/
+examples/demo_results/
+
+# Trajectories and topologies (keep them out of the repo)
+*.nc
+*.dcd
+*.prmtop
+*.parm7
+*.rst7
+*.mdcrd

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "md-interactions"
+version = "0.1.0"
+description = "Publication-ready interaction and reaction-geometry analysis of MD trajectories (AMBER prmtop + nc/dcd)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "J. Pardos" }]
+keywords = ["molecular dynamics", "MDAnalysis", "enzyme", "QM/MM", "analysis"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "MDAnalysis>=2.7",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "scipy>=1.10",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+netcdf = ["netCDF4>=1.6"]        # faster AMBER .nc reading (optional)
+kmeans = ["scikit-learn>=1.3"]   # optional k-means backend
+style = ["seaborn>=0.13"]        # optional plot styles
+dev = ["pytest>=7.4", "pytest-cov"]
+
+[project.scripts]
+md-analyzer = "md_interactions.cli:main"
+md_interactions = "md_interactions.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:MDAnalysis.*",
+]

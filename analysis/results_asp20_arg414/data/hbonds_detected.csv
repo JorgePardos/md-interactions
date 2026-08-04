@@ -1,0 +1,3 @@
+donor,hydrogen,acceptor,occupancy_%,distance_mean,angle_mean,n_frames
+SER24:OG,SER24:HG,ASP20:O,91.4000,2.7644,165.4936,914
+TYR115:OH,TYR115:HH,ASP20:OD1,85.1000,2.7029,161.8593,851
