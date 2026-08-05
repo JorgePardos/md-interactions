@@ -756,10 +756,12 @@ class RDFPair:
     """One radial distribution function.
 
     ``center`` decides what the distances are measured from: ``atom`` (every
-    atom of ``g1``, the standard definition) or ``com``/``residue`` (a single
-    centre at the centre of mass of ``g1``, for "solvent around this residue").
-    ``shell_cutoff`` overrides the automatically detected first minimum used
-    for the hydration-number time series.
+    atom of ``g1``, the standard definition), ``com`` (a single centre at the
+    centre of mass of ``g1``) or ``residue`` (equivalently ``proximal`` /
+    ``min`` / ``nearest``: the distance to the *closest* atom of ``g1``, which
+    is what "solvent around this residue" means for a shape that is not a
+    sphere).  ``shell_cutoff`` overrides the automatically detected first
+    minimum used for the hydration-number time series.
     """
 
     name: str
@@ -785,10 +787,11 @@ class RDFPair:
         if len(rng) != 2:
             raise ConfigError(f"'{where}.range' must be [rmin, rmax].")
         center = str(data.get("center", "atom")).lower()
-        if center not in {"atom", "com", "residue"}:
+        if center not in {"atom", "com", "residue", "proximal", "min", "nearest"}:
             raise ConfigError(
                 f"'{where}.center' must be 'atom', 'com' or 'residue' "
-                f"(got '{center}')."
+                f"('proximal'/'min'/'nearest' are accepted as synonyms of "
+                f"'residue'; got '{center}')."
             )
         cutoff = data.get("shell_cutoff")
         return cls(

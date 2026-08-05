@@ -157,6 +157,45 @@ from inside a buried residue `g(r)` never reaches bulk.
 On a solvent-exposed aspartate this gives 2.6 waters within 3.25 Å of OD1, and
 5.1 waters in the first shell of the whole residue.
 
+### Three regimes, not two
+
+A flat `g(r)` is not a failed measurement. Every pair is classified in the
+summary as one of
+
+| `regime` | Meaning |
+| --- | --- |
+| `structured` | a first peak and a closing minimum: a shell, with a coordination number |
+| `excluded` | `g(r)` stays **below 1 everywhere** — the solvent is kept out. A buried site, or one whose donor is already committed to the backbone. This is a result |
+| `bulk-like` | no structure, but no exclusion either |
+
+When no minimum can be detected there is still a number: occupancy falls back to
+a fixed 3.5 Å (the usual hydrogen-bond limit for water) and the summary says so,
+rather than leaving the site with no measurement at all.
+
+A `g_bulk_tail` column reports the mean `g(r)` over the outer quarter of the
+range. It should be ~1; when it is not, the run warns that the range stops
+before bulk or the centre sits where solvent cannot go, and that **the absolute
+scale of `g(r)` should not be quoted** — which is the normal situation for a
+buried active site.
+
+### Who is in the shell
+
+A coordination number of 2.0 is the same whether it is the same two molecules
+throughout or a different pair every frame — and the chemistry is not. Each RDF
+also writes `rdf_<name>_residents.csv` and a bar chart with, per partner
+residue, its occupancy, its **longest uninterrupted stay** and its mean closest
+approach:
+
+```
+resid   frames  occupancy_pct  longest_frames  mean_distance
+16589     2660           99.0            2207           2.59
+24244     2440           90.8            2330           2.61
+```
+
+Two permanently bound waters, not an exchanging shell. Identities are tracked
+out to 6 Å; if a detected shell reaches further, the run says the occupancy per
+molecule is unavailable instead of reporting an empty table.
+
 ## Bridging solvent
 
 Two RDFs can both show a full first shell without a single molecule ever
@@ -256,7 +295,7 @@ internet access; over SSH use `-L 8765:localhost:8765` and `--no-browser`.
 | `angles_dihedrals` | Angles in [0,180]° and dihedrals in (−180,180]°, with **circular** statistics for dihedrals |
 | `rmsd_rmsf` | Global and local RMSD (fit on one selection, measure another) + per-residue RMSF |
 | `hbonds` | D–A distance, D–H···A angle and occupancy of named bonds, plus automatic detection in a region |
-| `rdf` | g(r), n(r), first solvation shell and hydration number over time |
+| `rdf` | g(r), n(r), first solvation shell, hydration number over time, solvation regime (structured / excluded / bulk-like) and the occupancy of the shell per molecule |
 | `water_bridges` | Solvent molecules within reach of two groups at once: occupancy, identity, geometry and residence |
 | `free_energy_map` | 2D histogram or KDE of two observables, optionally as −kT ln P |
 | `radius_of_gyration` | Rg of one or more selections |
@@ -347,7 +386,7 @@ out.result("distances").tables["distances"]
 pytest
 ```
 
-121 tests on a synthetic 42-atom system generated on the fly
+142 tests on a synthetic 42-atom system generated on the fly
 (`md_interactions.testing`), so no trajectories are needed in the repository.
 They cover configuration and input-file parsing, frame handling, numerical
 checks of distances/angles/RMSD/Rg against direct numpy calculations, hydrogen

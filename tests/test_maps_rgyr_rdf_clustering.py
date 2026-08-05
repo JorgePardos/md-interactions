@@ -141,6 +141,58 @@ def test_rdf_shape_and_coordination(make_config, out_paths):
     assert (np.diff(df["n_r"]) >= -1e-12).all()   # n(r) is cumulative
     assert (out_paths.plots / "rdf_lig_wat.png").is_file()
 
+    # every pair is classified, so a caller never has to guess whether a flat
+    # profile means "no structure" or "solvent kept out"
+    row = result.summary[result.summary["observable"] == "rdf_lig_wat"].iloc[0]
+    assert row["regime"] in {"structured", "excluded", "bulk-like", "featureless"}
+
+
+def test_rdf_reports_who_occupies_the_shell(make_config, out_paths):
+    config = make_config({"rdf": {"pairs": [
+        {"name": "occupants", "g1": "LIG_O1", "g2": "WATERS",
+         "nbins": 40, "range": [0.0, 10.0], "shell_cutoff": 4.0},
+    ]}})
+    system = load_system(config, verbose=False)
+    result = rdf.run(system, out_paths, verbose=False)
+
+    residents = result.tables["occupants_residents"]
+    assert {"resid", "frames", "occupancy_pct", "longest_frames",
+            "mean_distance"} <= set(residents.columns)
+    assert (residents["occupancy_pct"] <= 100.0).all()
+    assert (residents["longest_frames"] <= residents["frames"]).all()
+    assert residents["frames"].is_monotonic_decreasing       # sorted by occupancy
+    assert (residents["mean_distance"] <= 4.0).all()
+    assert (out_paths.plots / "rdf_occupants_residents.png").is_file()
+
+
+def test_rdf_falls_back_to_a_fixed_cutoff_without_a_shell():
+    # a profile that never rises above bulk: excluded, not merely unstructured
+    profile = pd.DataFrame({
+        "r": np.linspace(0.1, 8.0, 40),
+        "g_r": np.full(40, 0.3),
+        "n_r": np.linspace(0, 2, 40),
+    })
+    shell = rdf.first_shell(profile)
+    assert not np.isfinite(shell["coordination"])
+    assert rdf.classify_shell(profile, shell) == "excluded"
+
+    flat = profile.assign(g_r=np.full(40, 1.0))
+    assert rdf.classify_shell(flat, rdf.first_shell(flat)) == "bulk-like"
+
+
+def test_shell_residents_is_none_beyond_the_tracked_radius():
+    residents = [(np.array([1], dtype=np.int32), np.array([2.5], dtype=np.float32))]
+    # returning an empty table here would read as "nobody was in the shell"
+    assert rdf.shell_residents(residents, rdf.RESIDENT_RADIUS + 1.0, 1) is None
+    table = rdf.shell_residents(residents, 3.0, 1)
+    assert table is not None and int(table.iloc[0]["resid"]) == 1
+
+
+def test_bulk_tail_flags_a_profile_that_never_reaches_bulk():
+    r = np.linspace(0.1, 8.0, 40)
+    assert rdf.bulk_tail(pd.DataFrame({"r": r, "g_r": np.ones(40)})) == pytest.approx(1.0)
+    assert rdf.bulk_tail(pd.DataFrame({"r": r, "g_r": np.full(40, 0.4)})) < 0.75
+
 
 # --------------------------------------------------------------------------- #
 # clustering
