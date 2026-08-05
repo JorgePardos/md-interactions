@@ -73,6 +73,9 @@ def _dispatch(system: MDSystem) -> list[tuple[str, Callable[..., AnalysisResult]
     if cfg.rdf.enabled:
         from .analyses import rdf
         jobs.append(("rdf", rdf.run))
+    if cfg.bridges.enabled:
+        from .analyses import water_bridges
+        jobs.append(("bridges", water_bridges.run))
     if cfg.clustering.enabled:
         from .analyses import clustering
         jobs.append(("clustering", clustering.run))

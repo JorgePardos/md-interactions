@@ -45,7 +45,7 @@ __all__ = ["parse_input", "input_to_dict", "load_input", "resolve_atom_spec"]
 #: Sections understood in the input file.
 _SECTIONS = {
     "selections", "distances", "angles", "dihedrals", "hbonds", "rmsd", "rmsf",
-    "rdf", "hydration", "rgyr", "clustering", "fes", "options",
+    "rdf", "bridges", "hydration", "rgyr", "clustering", "fes", "options",
 }
 
 #: Shorthand that expands to a full MDAnalysis selection.
@@ -327,6 +327,7 @@ def input_to_dict(parsed: dict[str, Any]) -> dict[str, Any]:
     _rmsd(sections, globals_, analyses, resolve)
     _rmsf(sections, globals_, analyses)
     _rdf(sections, analyses, resolve)
+    _bridges(sections, analyses, resolve)
     _rgyr(sections, analyses, resolve)
     _clustering(sections, analyses, resolve)
     _fes(sections, analyses)
@@ -555,6 +556,31 @@ def _rdf(sections, analyses: dict, resolve) -> None:
             entry["center"] = options["by"]
         pairs.append(entry)
     analyses["rdf"] = {"enabled": True, "pairs": pairs}
+
+
+def _bridges(sections, analyses: dict, resolve) -> None:
+    """``[bridges]``: ``name  groupA  groupB  [cutoff=3.5]``."""
+    entries = sections.get("bridges", [])
+    if not entries:
+        return
+    pairs = []
+    for tokens, options, number in entries:
+        if len(tokens) < 2:
+            raise ConfigError(
+                f"Line {number}: a bridge needs two groups (and optionally a name)."
+            )
+        if len(tokens) == 2:
+            name, first, second = f"bridge_{len(pairs) + 1}", tokens[0], tokens[1]
+        else:
+            name, first, second = tokens[0], tokens[1], tokens[2]
+        entry: dict[str, Any] = {"name": name, "group_a": resolve(first),
+                                 "group_b": resolve(second)}
+        if "cutoff" in options:
+            entry["cutoff"] = float(options["cutoff"])
+        if "solvent" in options:
+            entry["solvent"] = resolve_atom_spec(options["solvent"])[1]
+        pairs.append(entry)
+    analyses["bridges"] = {"enabled": True, "pairs": pairs}
 
 
 def _rgyr(sections, analyses: dict, resolve) -> None:

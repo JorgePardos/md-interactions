@@ -115,6 +115,7 @@ SITE  {byres (protein and around 6 resname TRH)}
 | `[rmsd]` | `name  selection  [fit=selection]` — **on by default** |
 | `[rmsf]` | `selection …`, `highlight 20 414` — **on by default** |
 | `[rdf]` | `name  centre  partner  [rmax=…] [bins=…] [by=residue]` |
+| `[bridges]` | `name  groupA  groupB  [cutoff=3.5]` |
 | `[rgyr]` | `name  selection` |
 | `[clustering]` | `selection …`, `n 3` |
 | `[fes]` | `name x=obs1 y=obs2 [bins=…]` |
@@ -155,6 +156,23 @@ from inside a buried residue `g(r)` never reaches bulk.
 
 On a solvent-exposed aspartate this gives 2.6 waters within 3.25 Å of OD1, and
 5.1 waters in the first shell of the whole residue.
+
+## Bridging solvent
+
+Two RDFs can both show a full first shell without a single molecule ever
+touching *both* groups at once. When the question is whether a water could
+relay a proton, what matters is the intersection:
+
+```
+[bridges]
+# name        group A      group B   cutoff (A, both sides)
+br_relay      ASP20:OD2    TRH:O1    cutoff=3.5
+```
+
+Reports how often a bridge exists, how many there are, **which molecule** it is,
+the two distances that define it, and how long the same molecule stays — a
+bridge held by one water for tens of picoseconds is a very different thing from
+one remade by a different water every frame.
 
 ---
 
@@ -239,6 +257,7 @@ internet access; over SSH use `-L 8765:localhost:8765` and `--no-browser`.
 | `rmsd_rmsf` | Global and local RMSD (fit on one selection, measure another) + per-residue RMSF |
 | `hbonds` | D–A distance, D–H···A angle and occupancy of named bonds, plus automatic detection in a region |
 | `rdf` | g(r), n(r), first solvation shell and hydration number over time |
+| `water_bridges` | Solvent molecules within reach of two groups at once: occupancy, identity, geometry and residence |
 | `free_energy_map` | 2D histogram or KDE of two observables, optionally as −kT ln P |
 | `radius_of_gyration` | Rg of one or more selections |
 | `clustering` | Hierarchical or k-means clustering, populations, PCA projection and a **PDB of the representative frame** |
@@ -295,7 +314,7 @@ src/md_interactions/
 ├── testing.py       synthetic toy system
 └── analyses/        distances, angles_dihedrals, rmsd_rmsf, hbonds,
                      free_energy_map, radius_of_gyration, rdf, clustering,
-                     distributions, replicas
+                     water_bridges, distributions, replicas
 ```
 
 Every module in `analyses/` follows the same contract:

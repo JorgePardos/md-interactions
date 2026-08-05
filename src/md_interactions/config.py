@@ -41,6 +41,8 @@ __all__ = [
     "NamedSelection",
     "RDFConfig",
     "RDFPair",
+    "BridgeConfig",
+    "BridgePair",
     "ClusteringConfig",
     "ReportConfig",
     "load_config",
@@ -817,6 +819,50 @@ class RDFConfig:
 
 
 @dataclass
+class BridgePair:
+    """Two groups that a solvent molecule may bridge.
+
+    ``cutoff`` applies to both sides: a molecule counts as a bridge when it is
+    within that distance of ``group_a`` *and* of ``group_b`` in the same frame.
+    """
+
+    name: str
+    group_a: str
+    group_b: str
+    cutoff: float = 3.5
+    solvent: str = "resname WAT HOH SOL TIP3 T3P and name O OW OH2"
+
+    @classmethod
+    def from_dict(cls, data: Any, index: int) -> "BridgePair":
+        where = f"analyses.bridges.pairs[{index}]"
+        data = _as_mapping(data, where)
+        _check_keys(data, ["name", "group_a", "group_b", "cutoff", "solvent"], where)
+        return cls(
+            name=str(_require(data, "name", where)),
+            group_a=str(_require(data, "group_a", where)),
+            group_b=str(_require(data, "group_b", where)),
+            cutoff=float(data.get("cutoff", 3.5)),
+            solvent=str(data.get(
+                "solvent", "resname WAT HOH SOL TIP3 T3P and name O OW OH2")),
+        )
+
+
+@dataclass
+class BridgeConfig:
+    enabled: bool = False
+    pairs: list[BridgePair] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: Any) -> "BridgeConfig":
+        where = "analyses.bridges"
+        data = _as_mapping(data, where)
+        _check_keys(data, ["enabled", "pairs"], where)
+        pairs = [BridgePair.from_dict(p, i)
+                 for i, p in enumerate(_as_list(data.get("pairs"), f"{where}.pairs"))]
+        return cls(enabled=bool(data.get("enabled", True)) and bool(pairs), pairs=pairs)
+
+
+@dataclass
 class ClusteringConfig:
     enabled: bool = False
     selection: str = "protein and name CA"
@@ -901,6 +947,7 @@ class Config:
     free_energy: FreeEnergyConfig = field(default_factory=FreeEnergyConfig)
     rgyr: RgyrConfig = field(default_factory=RgyrConfig)
     rdf: RDFConfig = field(default_factory=RDFConfig)
+    bridges: BridgeConfig = field(default_factory=BridgeConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
     source: Path | None = None
@@ -924,7 +971,8 @@ class Config:
         _check_keys(
             analyses,
             ["distances", "angles", "dihedrals", "rmsd", "rmsf", "hbonds",
-             "free_energy_maps", "radius_of_gyration", "rdf", "clustering"],
+             "free_energy_maps", "radius_of_gyration", "rdf", "bridges",
+             "clustering"],
             "analyses",
         )
 
@@ -943,6 +991,7 @@ class Config:
             free_energy=FreeEnergyConfig.from_dict(analyses.get("free_energy_maps")),
             rgyr=RgyrConfig.from_dict(analyses.get("radius_of_gyration")),
             rdf=RDFConfig.from_dict(analyses.get("rdf")),
+            bridges=BridgeConfig.from_dict(analyses.get("bridges")),
             clustering=ClusteringConfig.from_dict(analyses.get("clustering")),
             report=ReportConfig.from_dict(data.get("report")),
             source=source,
@@ -962,6 +1011,7 @@ class Config:
             ("rmsd", [g.name for g in self.rmsd.groups]),
             ("rgyr", [g.name for g in self.rgyr.groups]),
             ("rdf", [p.name for p in self.rdf.pairs]),
+            ("bridge", [p.name for p in self.bridges.pairs]),
             ("free-energy map", [m.name for m in self.free_energy.maps]),
         ]
         for kind, names in groups:
@@ -1005,6 +1055,7 @@ class Config:
             "free_energy_maps": self.free_energy.enabled,
             "radius_of_gyration": self.rgyr.enabled,
             "rdf": self.rdf.enabled,
+            "bridges": self.bridges.enabled,
             "clustering": self.clustering.enabled,
         }
         return [name for name, on in flags.items() if on]

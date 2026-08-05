@@ -130,7 +130,7 @@ def _frame_volume(system: MDSystem, box, group2) -> float:
 
 
 def first_shell(profile: pd.DataFrame, min_peak: float = 1.05,
-                normalised: bool = True) -> dict:
+                normalised: bool = True, dip_fraction: float = 0.75) -> dict:
     """First peak of the profile and the minimum that closes the shell.
 
     Returns ``{peak_r, peak_g, minimum_r, coordination}``, all NaN when there
@@ -164,9 +164,14 @@ def first_shell(profile: pd.DataFrame, min_peak: float = 1.05,
         if g[peak] < min_peak:
             return empty
 
+    # The shell closes at the first *real* dip, not at any wiggle: a noisy
+    # profile has small local minima right after the peak, and taking one of
+    # them would report a first shell holding a fraction of a molecule.
     minimum = None
     for index in range(peak + 1, g.size - 1):
-        if g[index] <= g[index + 1] and g[index] < g[peak]:
+        is_local_min = g[index] <= g[index + 1]
+        deep_enough = g[index] <= dip_fraction * g[peak]
+        if is_local_min and deep_enough:
             minimum = index
             break
     if minimum is None:

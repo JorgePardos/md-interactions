@@ -83,6 +83,10 @@ def selection_tokens(config: Config) -> list[tuple[str, str]]:
     for pair in config.rdf.pairs:
         tokens.append((f"rdf:{pair.name}.g1", pair.g1))
         tokens.append((f"rdf:{pair.name}.g2", pair.g2))
+    for pair in config.bridges.pairs:
+        tokens.append((f"bridge:{pair.name}.a", pair.group_a))
+        tokens.append((f"bridge:{pair.name}.b", pair.group_b))
+        tokens.append((f"bridge:{pair.name}.solvent", pair.solvent))
     if config.clustering.enabled:
         tokens.append(("clustering", config.clustering.selection))
         if config.clustering.write_selection:
@@ -122,6 +126,8 @@ def expected_observables(config: Config) -> set[str]:
     names.update(group.name for group in config.rgyr.groups)
     for pair in config.rdf.pairs:
         names.add(f"n_{pair.name}")
+    for pair in config.bridges.pairs:
+        names.add(f"nbridge_{pair.name}")
     return names
 
 
