@@ -111,6 +111,7 @@ SITE  {byres (protein and around 6 resname TRH)}
 | `[distances]` | `name  atomA  atomB  [threshold=…] [mode=atom\|com\|min]` |
 | `[angles]` | `name  atomA  atomB  atomC` |
 | `[dihedrals]` | `name  atomA  atomB  atomC  atomD` |
+| `[planarity]` (`[pplane]`) | `name  centre  subA  subB  subC` — **the centre first** |
 | `[hbonds]` | `name donor=… acceptor=…`, plus `auto  regionA  regionB` |
 | `[rmsd]` | `name  selection  [fit=selection]` — **on by default** |
 | `[rmsf]` | `selection …`, `highlight 20 414` — **on by default** |
@@ -195,6 +196,41 @@ resid   frames  occupancy_pct  longest_frames  mean_distance
 Two permanently bound waters, not an exchanging shell. Identities are tracked
 out to 6 Å; if a detected shell reaches further, the run says the occupancy per
 molecule is unavailable instead of reporting an empty table.
+
+## Planarity (`PPlane`)
+
+How far a centre sits out of the plane of its three substituents. `0` is planar
+— sp², a carbocation or an oxocarbenium — and the value grows as the centre
+pyramidalises towards sp³. **The centre is written first**:
+
+```
+[pplane]
+# name       centre     the three substituents
+p_anomeric   TRH:C1     TRH:O5   TRH:C2   TRH:HC1
+```
+
+Two numbers come out of it:
+
+| Observable | Unit | Planar | Tetrahedral |
+| --- | --- | --- | --- |
+| `p_anomeric` | Å | 0 | ≈ 0.45 |
+| `p_anomeric_angle_sum` | ° | 360 | 328.4 |
+
+The distance is **signed**, by the right-hand rule on the three substituents in
+the order given. A centre that crosses the plane changes sign, which is exactly
+what an inversion of configuration looks like — and an absolute value would hide
+it. Because a centre oscillating about the plane averages to ~0 without ever
+being planar, `<name>_abs` is reported too; that is the pyramidalisation proper,
+and the one to quote.
+
+The angle sum is independent of bond lengths, so it is the fair comparison
+between centres with different substituents.
+
+Collinear substituents give `NaN` rather than a number: every plane through
+three points on a line is equally valid, and picking one would be a fabrication.
+
+The improper dihedral is not duplicated here — write it in `[dihedrals]`, which
+already takes any four atoms.
 
 ## Bridging solvent
 
@@ -293,6 +329,7 @@ internet access; over SSH use `-L 8765:localhost:8765` and `--no-browser`.
 | --- | --- |
 | `distances` | Time series + histogram per distance, a multi-panel figure with all of them, mean ± sd, min/max, % below a threshold |
 | `angles_dihedrals` | Angles in [0,180]° and dihedrals in (−180,180]°, with **circular** statistics for dihedrals |
+| `planarity` | Signed out-of-plane distance of a centre from its three substituents, its magnitude and the sum of the three angles |
 | `rmsd_rmsf` | Global and local RMSD (fit on one selection, measure another) + per-residue RMSF |
 | `hbonds` | D–A distance, D–H···A angle and occupancy of named bonds, plus automatic detection in a region |
 | `rdf` | g(r), n(r), first solvation shell, hydration number over time, solvation regime (structured / excluded / bulk-like) and the occupancy of the shell per molecule |
@@ -352,8 +389,8 @@ src/md_interactions/
 ├── gui/             local web interface with a 3D viewer
 ├── testing.py       synthetic toy system
 └── analyses/        distances, angles_dihedrals, rmsd_rmsf, hbonds,
-                     free_energy_map, radius_of_gyration, rdf, clustering,
-                     water_bridges, distributions, replicas
+                     planarity, free_energy_map, radius_of_gyration, rdf,
+                     clustering, water_bridges, distributions, replicas
 ```
 
 Every module in `analyses/` follows the same contract:
@@ -386,7 +423,7 @@ out.result("distances").tables["distances"]
 pytest
 ```
 
-142 tests on a synthetic 42-atom system generated on the fly
+152 tests on a synthetic 42-atom system generated on the fly
 (`md_interactions.testing`), so no trajectories are needed in the repository.
 They cover configuration and input-file parsing, frame handling, numerical
 checks of distances/angles/RMSD/Rg against direct numpy calculations, hydrogen

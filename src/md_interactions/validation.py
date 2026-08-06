@@ -62,6 +62,8 @@ def selection_tokens(config: Config) -> list[tuple[str, str]]:
         tokens += [(f"angle:{defn.name}", token) for token in defn.atoms]
     for defn in config.angles.dihedrals:
         tokens += [(f"dihedral:{defn.name}", token) for token in defn.atoms]
+    for defn in config.planarity.definitions:
+        tokens += [(f"planarity:{defn.name}", token) for token in defn.atoms]
     for group in config.rmsd.groups:
         tokens.append((f"rmsd:{group.name}", group.selection))
         if group.superposition:
@@ -119,6 +121,9 @@ def expected_observables(config: Config) -> set[str]:
     names.update(defn.name for defn in config.distances.pairs)
     names.update(defn.name for defn in config.angles.angles)
     names.update(defn.name for defn in config.angles.dihedrals)
+    for defn in config.planarity.definitions:
+        names.add(defn.name)
+        names.add(f"{defn.name}_angle_sum")
     for hbond in config.hbonds.pairs:
         names.add(hbond.name)
         names.add(f"{hbond.name}_angle")

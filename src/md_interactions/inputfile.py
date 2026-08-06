@@ -14,6 +14,9 @@ easy to make.  This module reads a flat, cpptraj-flavoured input file instead::
     [angles]
     a_attack ASP20:OD1   TRH453:C1   TRH453:O1
 
+    [pplane]
+    p_anom   TRH453:C1   TRH453:O5   TRH453:C2   TRH453:HC1
+
 Atoms can be written in whichever notation is at hand:
 
 ============================ =================================================
@@ -44,9 +47,13 @@ __all__ = ["parse_input", "input_to_dict", "load_input", "resolve_atom_spec"]
 
 #: Sections understood in the input file.
 _SECTIONS = {
-    "selections", "distances", "angles", "dihedrals", "hbonds", "rmsd", "rmsf",
-    "rdf", "bridges", "hydration", "rgyr", "clustering", "fes", "options",
+    "selections", "distances", "angles", "dihedrals", "planarity", "hbonds",
+    "rmsd", "rmsf", "rdf", "bridges", "hydration", "rgyr", "clustering", "fes",
+    "options",
 }
+
+#: Section names that mean the same thing, written the way people say them.
+_SECTION_ALIASES = {"pplane": "planarity", "planes": "planarity"}
 
 #: Shorthand that expands to a full MDAnalysis selection.
 _KEYWORDS = {
@@ -265,6 +272,7 @@ def parse_input(path: str | Path) -> dict[str, Any]:
 
         if line.startswith("[") and line.endswith("]"):
             current = line[1:-1].strip().lower()
+            current = _SECTION_ALIASES.get(current, current)
             if current not in _SECTIONS:
                 raise ConfigError(
                     f"Unknown section '[{current}]' on line {number}. "
@@ -323,6 +331,8 @@ def input_to_dict(parsed: dict[str, Any]) -> dict[str, Any]:
     _geometry(sections, "distances", 2, analyses, resolve)
     _geometry(sections, "angles", 3, analyses, resolve)
     _geometry(sections, "dihedrals", 4, analyses, resolve)
+    # centre first, then its three substituents
+    _geometry(sections, "planarity", 4, analyses, resolve, singular="planarity")
     _hbonds(sections, analyses, resolve)
     _rmsd(sections, globals_, analyses, resolve)
     _rmsf(sections, globals_, analyses)
@@ -404,15 +414,17 @@ def _output(globals_: dict[str, list[str]]) -> dict[str, Any]:
     return output
 
 
-def _geometry(sections, name: str, n_atoms: int, analyses: dict, resolve) -> None:
+def _geometry(sections, name: str, n_atoms: int, analyses: dict, resolve,
+              singular: str | None = None) -> None:
     entries = sections.get(name, [])
     if not entries:
         return
+    singular = singular or name[:-1]
     definitions = []
     for tokens, options, number in entries:
         if len(tokens) < n_atoms:
             raise ConfigError(
-                f"Line {number}: '{name[:-1]}' needs {n_atoms} atom "
+                f"Line {number}: '{singular}' needs {n_atoms} atom "
                 f"specifications, found {len(tokens)}."
             )
         if len(tokens) == n_atoms:

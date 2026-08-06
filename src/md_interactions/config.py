@@ -492,6 +492,50 @@ class AnglesConfig:
 
 
 # --------------------------------------------------------------------------- #
+# planarity
+# --------------------------------------------------------------------------- #
+@dataclass
+class PlanarityConfig:
+    """Centres whose planarity is followed.
+
+    Each definition is four selections: **the centre first**, then its three
+    substituents.  The reported value is the distance from the centre to the
+    plane of the other three, zero for a planar (sp2) centre.
+    """
+
+    enabled: bool = False
+    definitions: list[GeometryDef] = field(default_factory=list)
+    bins: int = 60
+    kde: bool = True
+    pbc: bool = True
+    facet: bool = True
+    normalization: str = "density"
+
+    @classmethod
+    def from_dict(cls, data: Any) -> "PlanarityConfig":
+        where = "analyses.planarity"
+        data = _as_mapping(data, where)
+        _check_keys(data, ["enabled", "definitions", "bins", "kde", "pbc",
+                           "facet", "normalization"], where)
+        definitions: list[GeometryDef] = []
+        if data.get("enabled", True):
+            definitions = [
+                GeometryDef.from_dict(d, i, 4, f"{where}.definitions")
+                for i, d in enumerate(
+                    _as_list(data.get("definitions"), f"{where}.definitions"))
+            ]
+        return cls(
+            enabled=bool(definitions),
+            definitions=definitions,
+            bins=int(data.get("bins", 60)),
+            kde=bool(data.get("kde", True)),
+            pbc=bool(data.get("pbc", True)),
+            facet=bool(data.get("facet", True)),
+            normalization=_normalization(data.get("normalization"), where),
+        )
+
+
+# --------------------------------------------------------------------------- #
 # RMSD / RMSF
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -944,6 +988,7 @@ class Config:
     selections: dict[str, str] = field(default_factory=dict)
     distances: DistancesConfig = field(default_factory=DistancesConfig)
     angles: AnglesConfig = field(default_factory=AnglesConfig)
+    planarity: PlanarityConfig = field(default_factory=PlanarityConfig)
     rmsd: RMSDConfig = field(default_factory=RMSDConfig)
     rmsf: RMSFConfig = field(default_factory=RMSFConfig)
     hbonds: HBondsConfig = field(default_factory=HBondsConfig)
@@ -973,9 +1018,9 @@ class Config:
         analyses = _as_mapping(data.get("analyses"), "analyses")
         _check_keys(
             analyses,
-            ["distances", "angles", "dihedrals", "rmsd", "rmsf", "hbonds",
-             "free_energy_maps", "radius_of_gyration", "rdf", "bridges",
-             "clustering"],
+            ["distances", "angles", "dihedrals", "planarity", "rmsd", "rmsf",
+             "hbonds", "free_energy_maps", "radius_of_gyration", "rdf",
+             "bridges", "clustering"],
             "analyses",
         )
 
@@ -988,6 +1033,7 @@ class Config:
             distances=DistancesConfig.from_dict(analyses.get("distances")),
             angles=AnglesConfig.from_dict(analyses.get("angles"),
                                           analyses.get("dihedrals")),
+            planarity=PlanarityConfig.from_dict(analyses.get("planarity")),
             rmsd=RMSDConfig.from_dict(analyses.get("rmsd")),
             rmsf=RMSFConfig.from_dict(analyses.get("rmsf")),
             hbonds=HBondsConfig.from_dict(analyses.get("hbonds")),
@@ -1010,6 +1056,7 @@ class Config:
             ("distance", [d.name for d in self.distances.pairs]),
             ("angle", [a.name for a in self.angles.angles]),
             ("dihedral", [d.name for d in self.angles.dihedrals]),
+            ("planarity", [p.name for p in self.planarity.definitions]),
             ("hbond", [h.name for h in self.hbonds.pairs]),
             ("rmsd", [g.name for g in self.rmsd.groups]),
             ("rgyr", [g.name for g in self.rgyr.groups]),
@@ -1052,6 +1099,7 @@ class Config:
         flags = {
             "distances": self.distances.enabled,
             "angles_dihedrals": self.angles.enabled,
+            "planarity": self.planarity.enabled,
             "rmsd": self.rmsd.enabled,
             "rmsf": self.rmsf.enabled,
             "hbonds": self.hbonds.enabled,

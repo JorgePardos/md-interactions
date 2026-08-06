@@ -61,6 +61,9 @@ def _dispatch(system: MDSystem) -> list[tuple[str, Callable[..., AnalysisResult]
     if cfg.angles.enabled:
         from .analyses import angles_dihedrals
         jobs.append(("angles_dihedrals", angles_dihedrals.run))
+    if cfg.planarity.enabled:
+        from .analyses import planarity
+        jobs.append(("planarity", planarity.run))
     if cfg.rmsd.enabled or cfg.rmsf.enabled:
         from .analyses import rmsd_rmsf
         jobs.append(("rmsd_rmsf", rmsd_rmsf.run))
